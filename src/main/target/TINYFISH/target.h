@@ -1,18 +1,21 @@
 /*
- * This file is part of Cleanflight.
+ * This file is part of Cleanflight and Betaflight.
  *
- * Cleanflight is free software: you can redistribute it and/or modify
- * it under the terms of the GNU General Public License as published by
- * the Free Software Foundation, either version 3 of the License, or
- * (at your option) any later version.
+ * Cleanflight and Betaflight are free software. You can redistribute
+ * this software and/or modify this software under the terms of the
+ * GNU General Public License as published by the Free Software
+ * Foundation, either version 3 of the License, or (at your option)
+ * any later version.
  *
- * Cleanflight is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- * GNU General Public License for more details.
+ * Cleanflight and Betaflight are distributed in the hope that they
+ * will be useful, but WITHOUT ANY WARRANTY; without even the implied
+ * warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
+ * See the GNU General Public License for more details.
  *
  * You should have received a copy of the GNU General Public License
- * along with Cleanflight.  If not, see <http://www.gnu.org/licenses/>.
+ * along with this software.
+ *
+ * If not, see <http://www.gnu.org/licenses/>.
  */
 
 #pragma once
@@ -22,24 +25,26 @@
 #define TARGET_BOARD_IDENTIFIER "TFSH" // http://fishpepper.de/projects/tinyFISH
 
 
-#define LED0                    PC14
-#define LED1                    PC15
+#define LED0_PIN                PC14
+#define LED1_PIN                PA13
 
-#define BEEPER                  PB2
+#define USE_BEEPER
+#define BEEPER_PIN              PC15
+#define BEEPER_INVERTED
+
 
 #define USE_EXTI
 #define MPU_INT_EXTI PC13
 #define USE_MPU_DATA_READY_SIGNAL
-#define EXTI15_10_CALLBACK_HANDLER_COUNT 1 // MPU_INT
 
 #define MPU6000_SPI_INSTANCE    SPI1
 #define MPU6000_CS_PIN          PA4
 
-#define GYRO
+#define USE_GYRO
 #define USE_GYRO_SPI_MPU6000
 #define GYRO_MPU6000_ALIGN      CW180_DEG_FLIP
 
-#define ACC
+#define USE_ACC
 #define USE_ACC_SPI_MPU6000
 #define ACC_MPU6000_ALIGN       CW180_DEG_FLIP
 
@@ -85,19 +90,29 @@
 #define SPI2_MISO_PIN           PB14
 #define SPI2_MOSI_PIN           PB15
 
-#define M25P16_CS_PIN           SPI2_NSS_PIN
-#define M25P16_SPI_INSTANCE     SPI2
+#define FLASH_CS_PIN            SPI2_NSS_PIN
+#define FLASH_SPI_INSTANCE      SPI2
 
 #define USE_FLASHFS
 #define USE_FLASH_M25P16
 #define ENABLE_BLACKBOX_LOGGING_ON_SPIFLASH_BY_DEFAULT
 
 #define USE_ADC
-#define BOARD_HAS_VOLTAGE_DIVIDER
+#define DEFAULT_VOLTAGE_METER_SOURCE VOLTAGE_METER_ADC
+#define DEFAULT_CURRENT_METER_SOURCE CURRENT_METER_ADC
 #define VBAT_ADC_PIN                PB1
 #define CURRENT_METER_ADC_PIN       PB0
 #define ADC_INSTANCE                ADC3
 #define VBAT_SCALE_DEFAULT          100
+
+#define CURRENT_TARGET_CPU_VOLTAGE 3.0
+
+// board uses an ina139, RL=0.005, Rs=30000
+// V/A = (0.005 * 0.001 * 30000) * I
+// rescale to 1/10th mV / A -> * 1000 * 10
+// use 3.0V as cpu and adc voltage -> rescale by 3.0/3.3
+#define CURRENT_METER_SCALE_DEFAULT    (0.005 * 0.001 * 30000) * 1000 * 10 * (CURRENT_TARGET_CPU_VOLTAGE / 3.3)
+#define CURRENT_METER_OFFSET_DEFAULT   0
 
 #define WS2811_PIN                      PA8
 #define WS2811_TIMER                    TIM1
@@ -107,8 +122,8 @@
 #define WS2811_DMA_HANDLER_IDENTIFER    DMA1_CH2_HANDLER
 
 #define DEFAULT_RX_FEATURE      FEATURE_RX_SERIAL
-#define DEFAULT_FEATURES        (FEATURE_VBAT | FEATURE_CURRENT_METER | FEATURE_BLACKBOX | FEATURE_TELEMETRY)
-#define TARGET_CONFIG
+#define DEFAULT_FEATURES        ( FEATURE_TELEMETRY )
+#define USE_TARGET_CONFIG
 
 #define USE_SERIAL_4WAY_BLHELI_INTERFACE
 

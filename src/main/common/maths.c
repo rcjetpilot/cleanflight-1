@@ -1,18 +1,21 @@
 /*
- * This file is part of Cleanflight.
+ * This file is part of Cleanflight and Betaflight.
  *
- * Cleanflight is free software: you can redistribute it and/or modify
- * it under the terms of the GNU General Public License as published by
- * the Free Software Foundation, either version 3 of the License, or
- * (at your option) any later version.
+ * Cleanflight and Betaflight are free software. You can redistribute
+ * this software and/or modify this software under the terms of the
+ * GNU General Public License as published by the Free Software
+ * Foundation, either version 3 of the License, or (at your option)
+ * any later version.
  *
- * Cleanflight is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- * GNU General Public License for more details.
+ * Cleanflight and Betaflight are distributed in the hope that they
+ * will be useful, but WITHOUT ANY WARRANTY; without even the implied
+ * warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
+ * See the GNU General Public License for more details.
  *
  * You should have received a copy of the GNU General Public License
- * along with Cleanflight.  If not, see <http://www.gnu.org/licenses/>.
+ * along with this software.
+ *
+ * If not, see <http://www.gnu.org/licenses/>.
  */
 
 #include <stdint.h>
@@ -99,6 +102,15 @@ float acos_approx(float x)
 }
 #endif
 
+int gcd(int num, int denom)
+{
+    if (denom == 0) {
+        return num;
+    }
+
+    return gcd(denom, num % denom);
+}
+
 float powerf(float base, int exp) {
     float result = base;
     for (int count = 1; count < exp; count++) result *= base;
@@ -106,16 +118,22 @@ float powerf(float base, int exp) {
     return result;
 }
 
-int32_t applyDeadband(int32_t value, int32_t deadband)
+int32_t applyDeadband(const int32_t value, const int32_t deadband)
 {
     if (ABS(value) < deadband) {
-        value = 0;
-    } else if (value > 0) {
-        value -= deadband;
-    } else if (value < 0) {
-        value += deadband;
+        return 0;
     }
-    return value;
+
+    return value >= 0 ? value - deadband : value + deadband;
+}
+
+float fapplyDeadband(const float value, const float deadband)
+{
+    if (fabsf(value) < deadband) {
+        return 0;
+    }
+
+    return value >= 0 ? value - deadband : value + deadband;
 }
 
 void devClear(stdev_t *dev)
@@ -152,10 +170,16 @@ float degreesToRadians(int16_t degrees)
     return degrees * RAD;
 }
 
-int scaleRange(int x, int srcMin, int srcMax, int destMin, int destMax) {
-    long int a = ((long int) destMax - (long int) destMin) * ((long int) x - (long int) srcMin);
-    long int b = (long int) srcMax - (long int) srcMin;
-    return ((a / b) - (destMax - destMin)) + destMax;
+int scaleRange(int x, int srcFrom, int srcTo, int destFrom, int destTo) {
+    long int a = ((long int) destTo - (long int) destFrom) * ((long int) x - (long int) srcFrom);
+    long int b = (long int) srcTo - (long int) srcFrom;
+    return (a / b) + destFrom;
+}
+
+float scaleRangef(float x, float srcFrom, float srcTo, float destFrom, float destTo) {
+    float a = (destTo - destFrom) * (x - srcFrom);
+    float b = srcTo - srcFrom;
+    return (a / b) + destFrom;
 }
 
 // Normalize a vector
@@ -336,30 +360,3 @@ int16_t qMultiply(fix12_t q, int16_t input) {
 fix12_t  qConstruct(int16_t num, int16_t den) {
     return (num << 12) / den;
 }
-
-uint16_t crc16_ccitt(uint16_t crc, unsigned char a)
-{
-    crc ^= (uint16_t)a << 8;
-    for (int ii = 0; ii < 8; ++ii) {
-        if (crc & 0x8000) {
-            crc = (crc << 1) ^ 0x1021;
-        } else {
-            crc = crc << 1;
-        }
-    }
-    return crc;
-}
-
-uint8_t crc8_dvb_s2(uint8_t crc, unsigned char a)
-{
-    crc ^= a;
-    for (int ii = 0; ii < 8; ++ii) {
-        if (crc & 0x80) {
-            crc = (crc << 1) ^ 0xD5;
-        } else {
-            crc = crc << 1;
-        }
-    }
-    return crc;
-}
-

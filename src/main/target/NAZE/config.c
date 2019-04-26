@@ -1,30 +1,38 @@
 /*
- * This file is part of Cleanflight.
+ * This file is part of Cleanflight and Betaflight.
  *
- * Cleanflight is free software: you can redistribute it and/or modify
- * it under the terms of the GNU General Public License as published by
- * the Free Software Foundation, either version 3 of the License, or
- * (at your option) any later version.
+ * Cleanflight and Betaflight are free software. You can redistribute
+ * this software and/or modify this software under the terms of the
+ * GNU General Public License as published by the Free Software
+ * Foundation, either version 3 of the License, or (at your option)
+ * any later version.
  *
- * Cleanflight is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- * GNU General Public License for more details.
+ * Cleanflight and Betaflight are distributed in the hope that they
+ * will be useful, but WITHOUT ANY WARRANTY; without even the implied
+ * warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
+ * See the GNU General Public License for more details.
  *
  * You should have received a copy of the GNU General Public License
- * along with Cleanflight.  If not, see <http://www.gnu.org/licenses/>.
+ * along with this software.
+ *
+ * If not, see <http://www.gnu.org/licenses/>.
  */
 
 #include <stdbool.h>
 #include <stdint.h>
 
-#include <platform.h>
+#include "platform.h"
 
-#ifdef TARGET_CONFIG
+#ifdef USE_TARGET_CONFIG
+
+#include "blackbox/blackbox.h"
+
+#include "common/axis.h"
 #include "common/utils.h"
 
 #include "drivers/io.h"
 
+#include "fc/config.h"
 #include "fc/rc_controls.h"
 #include "fc/controlrate_profile.h"
 
@@ -32,86 +40,100 @@
 #include "flight/mixer.h"
 #include "flight/pid.h"
 
+#include "pg/rx.h"
+
 #include "rx/rx.h"
 
-#include "config/config_profile.h"
-#include "config/config_master.h"
+#include "sensors/acceleration.h"
+#include "sensors/compass.h"
+#include "sensors/gyro.h"
+
+#include "pg/beeper_dev.h"
+#include "pg/flash.h"
 
 #include "hardware_revision.h"
 
-void targetConfiguration(master_t *config)
+void targetConfiguration(void)
 {
-    UNUSED(config);
-
 #ifdef BEEBRAIN
     // alternative defaults settings for Beebrain target
-    config->motorConfig.dev.motorPwmRate = 4000;
-    config->failsafeConfig.failsafe_delay = 2;
-    config->failsafeConfig.failsafe_off_delay = 0;
+    motorConfigMutable()->dev.motorPwmRate = 4000;
+    failsafeConfigMutable()->failsafe_delay = 2;
+    failsafeConfigMutable()->failsafe_off_delay = 0;
 
-    config->motorConfig.minthrottle = 1049;
+    motorConfigMutable()->minthrottle = 1049;
 
-    config->gyroConfig.gyro_lpf = GYRO_LPF_188HZ;
-    config->gyroConfig.gyro_soft_lpf_hz = 100;
-    config->gyroConfig.gyro_soft_notch_hz_1 = 0;
-    config->gyroConfig.gyro_soft_notch_hz_2 = 0;
+    gyroConfigMutable()->gyro_hardware_lpf = GYRO_HARDWARE_LPF_1KHZ_SAMPLE;
+    gyroConfigMutable()->gyro_lowpass_hz = 100;
+    gyroConfigMutable()->gyro_soft_notch_hz_1 = 0;
+    gyroConfigMutable()->gyro_soft_notch_hz_2 = 0;
 
     /*for (int channel = 0; channel < NON_AUX_CHANNEL_COUNT; channel++) {
-        config->rxConfig.channelRanges[channel].min = 1180;
-        config->rxConfig.channelRanges[channel].max = 1860;
+        rxChannelRangeConfigsMutable(channel)->min = 1180;
+        rxChannelRangeConfigsMutable(channel)->max = 1860;
     }*/
 
-    for (int profileId = 0; profileId < 2; profileId++) {
-        config->profile[profileId].pidProfile.P8[ROLL] = 60;
-        config->profile[profileId].pidProfile.I8[ROLL] = 70;
-        config->profile[profileId].pidProfile.D8[ROLL] = 17;
-        config->profile[profileId].pidProfile.P8[PITCH] = 80;
-        config->profile[profileId].pidProfile.I8[PITCH] = 90;
-        config->profile[profileId].pidProfile.D8[PITCH] = 18;
-        config->profile[profileId].pidProfile.P8[YAW] = 200;
-        config->profile[profileId].pidProfile.I8[YAW] = 45;
-        config->profile[profileId].pidProfile.P8[PIDLEVEL] = 30;
-        config->profile[profileId].pidProfile.D8[PIDLEVEL] = 30;
+    for (uint8_t pidProfileIndex = 0; pidProfileIndex < MAX_PROFILE_COUNT; pidProfileIndex++) {
+        pidProfile_t *pidProfile = pidProfilesMutable(pidProfileIndex);
 
-        for (int rateProfileId = 0; rateProfileId < CONTROL_RATE_PROFILE_COUNT; rateProfileId++) {
-            config->controlRateProfile[rateProfileId].rcRate8 = 100;
-            config->controlRateProfile[rateProfileId].rcYawRate8 = 110;
-            config->controlRateProfile[rateProfileId].rcExpo8 = 0;
-            config->controlRateProfile[rateProfileId].rates[ROLL] = 77;
-            config->controlRateProfile[rateProfileId].rates[PITCH] = 77;
-            config->controlRateProfile[rateProfileId].rates[YAW] = 80;
+        pidProfile->pid[PID_ROLL].P = 60;
+        pidProfile->pid[PID_ROLL].I = 70;
+        pidProfile->pid[PID_ROLL].D = 17;
+        pidProfile->pid[PID_PITCH].P = 80;
+        pidProfile->pid[PID_PITCH].I = 90;
+        pidProfile->pid[PID_PITCH].D = 18;
+        pidProfile->pid[PID_YAW].P = 200;
+        pidProfile->pid[PID_YAW].I = 45;
+        pidProfile->pid[PID_LEVEL].P = 30;
+        pidProfile->pid[PID_LEVEL].D = 30;
 
-            config->profile[profileId].pidProfile.dtermSetpointWeight = 200;
-            config->profile[profileId].pidProfile.setpointRelaxRatio = 50;
-        }
+        pidProfile->pid[PID_PITCH].F = 200;
+        pidProfile->pid[PID_ROLL].F = 200;
+        pidProfile->feedForwardTransition = 50;
+    }
+
+    for (uint8_t rateProfileIndex = 0; rateProfileIndex < CONTROL_RATE_PROFILE_COUNT; rateProfileIndex++) {
+        controlRateConfig_t *controlRateConfig = controlRateProfilesMutable(rateProfileIndex);
+
+        controlRateConfig->rcRates[FD_ROLL] = 100;
+        controlRateConfig->rcRates[FD_PITCH] = 100;
+        controlRateConfig->rcRates[FD_YAW] = 110;
+        controlRateConfig->rcExpo[FD_ROLL] = 0;
+        controlRateConfig->rcExpo[FD_PITCH] = 0;
+        controlRateConfig->rates[FD_ROLL] = 77;
+        controlRateConfig->rates[FD_PITCH] = 77;
+        controlRateConfig->rates[FD_YAW] = 80;
     }
 #endif
 
 #if !defined(AFROMINI) && !defined(BEEBRAIN)
     if (hardwareRevision >= NAZE32_REV5) {
         // naze rev4 and below used opendrain to PNP for buzzer. Rev5 and above use PP to NPN.
-        config->beeperDevConfig.isOpenDrain = false;
-        config->beeperDevConfig.isInverted = true;
+        beeperDevConfigMutable()->isOpenDrain = false;
+        beeperDevConfigMutable()->isInverted = true;
     } else {
-        config->beeperDevConfig.isOpenDrain = true;
-        config->beeperDevConfig.isInverted = false;
-        config->flashConfig.csTag = IO_TAG_NONE;
+        beeperDevConfigMutable()->isOpenDrain = true;
+        beeperDevConfigMutable()->isInverted = false;
+        flashConfigMutable()->csTag = IO_TAG_NONE;
     }
 #endif
 
 #ifdef MAG_INT_EXTI
     if (hardwareRevision < NAZE32_REV5) {
-        config->compassConfig.interruptTag = IO_TAG(PB12);
+        compassConfigMutable()->interruptTag = IO_TAG(PB12);
     }
+#endif
+
+#ifdef BLACKBOX
+    if (hardwareRevision >= NAZE32_REV5)
+        blackboxConfigMutable()->device = BLACKBOX_DEVICE_FLASH;
 #endif
 }
 
-void targetValidateConfiguration(master_t *config)
+void targetValidateConfiguration(void)
 {
-    UNUSED(config);
-
-    if (hardwareRevision < NAZE32_REV5 && config->accelerometerConfig.acc_hardware == ACC_ADXL345) {
-        config->accelerometerConfig.acc_hardware = ACC_NONE;
-    }  
+    if (hardwareRevision < NAZE32_REV5 && accelerometerConfig()->acc_hardware == ACC_ADXL345) {
+        accelerometerConfigMutable()->acc_hardware = ACC_NONE;
+    }
 }
 #endif

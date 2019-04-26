@@ -1,18 +1,21 @@
 /*
- * This file is part of Cleanflight.
+ * This file is part of Cleanflight and Betaflight.
  *
- * Cleanflight is free software: you can redistribute it and/or modify
- * it under the terms of the GNU General Public License as published by
- * the Free Software Foundation, either version 3 of the License, or
- * (at your option) any later version.
+ * Cleanflight and Betaflight are free software. You can redistribute
+ * this software and/or modify this software under the terms of the
+ * GNU General Public License as published by the Free Software
+ * Foundation, either version 3 of the License, or (at your option)
+ * any later version.
  *
- * Cleanflight is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- * GNU General Public License for more details.
+ * Cleanflight and Betaflight are distributed in the hope that they
+ * will be useful, but WITHOUT ANY WARRANTY; without even the implied
+ * warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
+ * See the GNU General Public License for more details.
  *
  * You should have received a copy of the GNU General Public License
- * along with Cleanflight.  If not, see <http://www.gnu.org/licenses/>.
+ * along with this software.
+ *
+ * If not, see <http://www.gnu.org/licenses/>.
  */
 
 #include <stdbool.h>
@@ -20,9 +23,8 @@
 
 #include "platform.h"
 
-#include "gpio.h"
-#include "nvic.h"
-#include "system.h"
+#include "drivers/nvic.h"
+#include "drivers/system.h"
 
 #define AIRCR_VECTKEY_MASK    ((uint32_t)0x05FA0000)
 void SetSysClock();
@@ -56,19 +58,21 @@ void enableGPIOPowerUsageAndNoiseReductions(void)
         ENABLE
     );
 
-    gpio_config_t gpio;
+    GPIO_InitTypeDef GPIO_InitStructure = {
+        .GPIO_Mode = GPIO_Mode_AN,
+        .GPIO_OType = GPIO_OType_OD,
+        .GPIO_PuPd = GPIO_PuPd_NOPULL
+    };
 
-    gpio.mode = Mode_AIN;
+    GPIO_InitStructure.GPIO_Pin = GPIO_Pin_All & ~(GPIO_Pin_13 | GPIO_Pin_14 | GPIO_Pin_15);  // Leave JTAG pins alone
+    GPIO_Init(GPIOA, &GPIO_InitStructure);
 
-    gpio.pin = Pin_All & ~(Pin_13 | Pin_14 | Pin_15);  // Leave JTAG pins alone
-    gpioInit(GPIOA, &gpio);
-
-    gpio.pin = Pin_All;
-    gpioInit(GPIOB, &gpio);
-    gpioInit(GPIOC, &gpio);
-    gpioInit(GPIOD, &gpio);
-    gpioInit(GPIOE, &gpio);
-    gpioInit(GPIOF, &gpio);
+    GPIO_InitStructure.GPIO_Pin = GPIO_Pin_All;
+    GPIO_Init(GPIOB, &GPIO_InitStructure);
+    GPIO_Init(GPIOC, &GPIO_InitStructure);
+    GPIO_Init(GPIOD, &GPIO_InitStructure);
+    GPIO_Init(GPIOE, &GPIO_InitStructure);
+    GPIO_Init(GPIOF, &GPIO_InitStructure);
 }
 
 bool isMPUSoftReset(void)
@@ -90,7 +94,7 @@ void systemInit(void)
     // Configure NVIC preempt/priority groups
     NVIC_PriorityGroupConfig(NVIC_PRIORITY_GROUPING);
 
-    // cache RCC->CSR value to use it in isMPUSoftreset() and others
+    // cache RCC->CSR value to use it in isMPUSoftReset() and others
     cachedRccCsrValue = RCC->CSR;
     RCC_ClearFlag();
 

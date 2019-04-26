@@ -1,18 +1,21 @@
 /*
- * This file is part of Cleanflight.
+ * This file is part of Cleanflight and Betaflight.
  *
- * Cleanflight is free software: you can redistribute it and/or modify
- * it under the terms of the GNU General Public License as published by
- * the Free Software Foundation, either version 3 of the License, or
- * (at your option) any later version.
+ * Cleanflight and Betaflight are free software. You can redistribute
+ * this software and/or modify this software under the terms of the
+ * GNU General Public License as published by the Free Software
+ * Foundation, either version 3 of the License, or (at your option)
+ * any later version.
  *
- * Cleanflight is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- * GNU General Public License for more details.
+ * Cleanflight and Betaflight are distributed in the hope that they
+ * will be useful, but WITHOUT ANY WARRANTY; without even the implied
+ * warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
+ * See the GNU General Public License for more details.
  *
  * You should have received a copy of the GNU General Public License
- * along with Cleanflight.  If not, see <http://www.gnu.org/licenses/>.
+ * along with this software.
+ *
+ * If not, see <http://www.gnu.org/licenses/>.
  */
 
 #include <stdbool.h>
@@ -21,12 +24,43 @@
 #include "platform.h"
 
 #include "drivers/light_led.h"
-#include "drivers/system.h"
+#include "drivers/time.h"
 #include "drivers/transponder_ir.h"
 
 #include "fc/fc_init.h"
 
 #include "flight/mixer.h"
+
+#ifdef STM32F7
+void MemManage_Handler(void)
+{
+    LED2_ON;
+
+    // fall out of the sky
+    uint8_t requiredStateForMotors = SYSTEM_STATE_CONFIG_LOADED | SYSTEM_STATE_MOTORS_READY;
+    if ((systemState & requiredStateForMotors) == requiredStateForMotors) {
+        stopMotors();
+    }
+
+#ifdef USE_TRANSPONDER
+    // prevent IR LEDs from burning out.
+    uint8_t requiredStateForTransponder = SYSTEM_STATE_CONFIG_LOADED | SYSTEM_STATE_TRANSPONDER_ENABLED;
+    if ((systemState & requiredStateForTransponder) == requiredStateForTransponder) {
+        transponderIrDisable();
+    }
+#endif
+
+    LED1_OFF;
+    LED0_OFF;
+
+    while (1) {
+        delay(500);
+        LED2_TOGGLE;
+        delay(50);
+        LED2_TOGGLE;
+    }
+}
+#endif
 
 #ifdef DEBUG_HARDFAULTS
 //from: https://mcuoneclipse.com/2012/11/24/debugging-hard-faults-on-arm-cortex-m/
@@ -93,12 +127,15 @@ void HardFault_Handler(void)
 {
     LED2_ON;
 
+#ifndef USE_OSD_SLAVE
     // fall out of the sky
     uint8_t requiredStateForMotors = SYSTEM_STATE_CONFIG_LOADED | SYSTEM_STATE_MOTORS_READY;
     if ((systemState & requiredStateForMotors) == requiredStateForMotors) {
         stopMotors();
     }
-#ifdef TRANSPONDER
+#endif
+
+#ifdef USE_TRANSPONDER
     // prevent IR LEDs from burning out.
     uint8_t requiredStateForTransponder = SYSTEM_STATE_CONFIG_LOADED | SYSTEM_STATE_TRANSPONDER_ENABLED;
     if ((systemState & requiredStateForTransponder) == requiredStateForTransponder) {
@@ -110,10 +147,8 @@ void HardFault_Handler(void)
     LED0_OFF;
 
     while (1) {
-#ifdef LED2
         delay(50);
         LED2_TOGGLE;
-#endif
     }
 }
 #endif

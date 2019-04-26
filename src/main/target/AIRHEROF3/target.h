@@ -1,31 +1,34 @@
 /*
- * This file is part of Cleanflight.
+ * This file is part of Cleanflight and Betaflight.
  *
- * Cleanflight is free software: you can redistribute it and/or modify
- * it under the terms of the GNU General Public License as published by
- * the Free Software Foundation, either version 3 of the License, or
- * (at your option) any later version.
+ * Cleanflight and Betaflight are free software. You can redistribute
+ * this software and/or modify this software under the terms of the
+ * GNU General Public License as published by the Free Software
+ * Foundation, either version 3 of the License, or (at your option)
+ * any later version.
  *
- * Cleanflight is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- * GNU General Public License for more details.
+ * Cleanflight and Betaflight are distributed in the hope that they
+ * will be useful, but WITHOUT ANY WARRANTY; without even the implied
+ * warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
+ * See the GNU General Public License for more details.
  *
  * You should have received a copy of the GNU General Public License
- * along with Cleanflight.  If not, see <http://www.gnu.org/licenses/>.
+ * along with this software.
+ *
+ * If not, see <http://www.gnu.org/licenses/>.
  */
 
 #pragma once
 
 #define TARGET_BOARD_IDENTIFIER "AIR3"
 
-#define CONFIG_FASTLOOP_PREFERRED_ACC ACC_DEFAULT
 #define CONFIG_PREFER_ACC_ON
 
-#define LED0                    PB3
-#define LED1                    PB4
+#define LED0_PIN                PB3
+#define LED1_PIN                PB4
 
-#define BEEPER                  PA12
+#define USE_BEEPER
+#define BEEPER_PIN              PA12
 #define BEEPER_INVERTED
 
 #define USE_EXTI
@@ -39,15 +42,15 @@
 #define MPU6500_CS_PIN          PB12
 #define MPU6500_SPI_INSTANCE    SPI2
 
-#define GYRO
+#define USE_GYRO
 #define USE_GYRO_SPI_MPU6500
 #define GYRO_MPU6500_ALIGN      CW0_DEG
 
-#define ACC
+#define USE_ACC
 #define USE_ACC_SPI_MPU6500
 #define ACC_MPU6500_ALIGN       CW0_DEG
 
-#define BARO
+#define USE_BARO
 #define USE_BARO_SPI_BMP280
 
 #define BMP280_SPI_INSTANCE     SPI2
@@ -61,7 +64,7 @@
 #define SERIAL_PORT_COUNT       5
 
 #define USE_ESCSERIAL
-#define ESCSERIAL_TIMER_TX_HARDWARE 0 // PWM 1
+#define ESCSERIAL_TIMER_TX_PIN  PA0  // (HARDARE=0,PPM)
 
 #define SOFTSERIAL1_RX_PIN      PA6  // PWM 5
 #define SOFTSERIAL1_TX_PIN      PA7  // PWM 6
@@ -78,20 +81,15 @@
 #define UART3_TX_PIN            PB10 // PB10 (AF7)
 #define UART3_RX_PIN            PB11 // PB11 (AF7)
 
-#define BOARD_HAS_VOLTAGE_DIVIDER
+#define DEFAULT_VOLTAGE_METER_SOURCE VOLTAGE_METER_ADC
 #define USE_ADC
 #define ADC_INSTANCE            ADC2
 #define VBAT_ADC_PIN            PA4
 
-#define DEFAULT_FEATURES        FEATURE_VBAT
 #define DEFAULT_RX_FEATURE      FEATURE_RX_SERIAL
 #define SERIALRX_PROVIDER       SERIALRX_SBUS
 #define SERIALRX_UART           SERIAL_PORT_USART2
 #define RX_CHANNELS_TAER
-
-#define SPEKTRUM_BIND
-// USART3,
-#define BIND_PIN                PB11
 
 #define USE_SERIAL_4WAY_BLHELI_INTERFACE
 

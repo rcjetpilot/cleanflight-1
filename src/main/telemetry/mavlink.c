@@ -1,18 +1,21 @@
 /*
- * This file is part of Cleanflight.
+ * This file is part of Cleanflight and Betaflight.
  *
- * Cleanflight is free software: you can redistribute it and/or modify
- * it under the terms of the GNU General Public License as published by
- * the Free Software Foundation, either version 3 of the License, or
- * (at your option) any later version.
+ * Cleanflight and Betaflight are free software. You can redistribute
+ * this software and/or modify this software under the terms of the
+ * GNU General Public License as published by the Free Software
+ * Foundation, either version 3 of the License, or (at your option)
+ * any later version.
  *
- * Cleanflight is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- * GNU General Public License for more details.
+ * Cleanflight and Betaflight are distributed in the hope that they
+ * will be useful, but WITHOUT ANY WARRANTY; without even the implied
+ * warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
+ * See the GNU General Public License for more details.
  *
  * You should have received a copy of the GNU General Public License
- * along with Cleanflight.  If not, see <http://www.gnu.org/licenses/>.
+ * along with this software.
+ *
+ * If not, see <http://www.gnu.org/licenses/>.
  */
 
 /*
@@ -26,20 +29,20 @@
 
 #include "platform.h"
 
-#if defined(TELEMETRY) && defined(TELEMETRY_MAVLINK)
+#if defined(USE_TELEMETRY) && defined(USE_TELEMETRY_MAVLINK)
 
 #include "common/maths.h"
 #include "common/axis.h"
 #include "common/color.h"
 
-#include "config/config_profile.h"
 #include "config/feature.h"
-#include "config/parameter_group.h"
-#include "config/parameter_group_ids.h"
+#include "pg/pg.h"
+#include "pg/pg_ids.h"
+#include "pg/rx.h"
 
-#include "drivers/system.h"
+#include "drivers/accgyro/accgyro.h"
 #include "drivers/sensor.h"
-#include "drivers/accgyro.h"
+#include "drivers/time.h"
 
 #include "fc/config.h"
 #include "fc/rc_controls.h"
@@ -49,8 +52,7 @@
 #include "flight/pid.h"
 #include "flight/imu.h"
 #include "flight/failsafe.h"
-#include "flight/navigation.h"
-#include "flight/altitudehold.h"
+#include "flight/position.h"
 
 #include "io/serial.h"
 #include "io/gimbal.h"
@@ -159,7 +161,7 @@ void configureMAVLinkTelemetryPort(void)
         baudRateIndex = BAUD_57600;
     }
 
-    mavlinkPort = openSerialPort(portConfig->identifier, FUNCTION_TELEMETRY_MAVLINK, NULL, baudRates[baudRateIndex], TELEMETRY_MAVLINK_INITIAL_PORT_MODE, SERIAL_NOT_INVERTED);
+    mavlinkPort = openSerialPort(portConfig->identifier, FUNCTION_TELEMETRY_MAVLINK, NULL, NULL, baudRates[baudRateIndex], TELEMETRY_MAVLINK_INITIAL_PORT_MODE, telemetryConfig()->telemetry_inverted ? SERIAL_INVERTED : SERIAL_NOT_INVERTED);
 
     if (!mavlinkPort) {
         return;
@@ -209,6 +211,16 @@ void mavlinkSendSystemStatus(void)
     if (sensors(SENSOR_BARO)) onboardControlAndSensors |=  8200;
     if (sensors(SENSOR_GPS))  onboardControlAndSensors |= 16416;
 
+    uint16_t batteryVoltage = 0;
+    int16_t batteryAmperage = -1;
+    int8_t batteryRemaining = 100;
+
+    if (getBatteryState() < BATTERY_NOT_PRESENT) {
+        batteryVoltage = isBatteryVoltageConfigured() ? getBatteryVoltage() * 100 : batteryVoltage;
+        batteryAmperage = isAmperageConfigured() ? getAmperage() : batteryAmperage;
+        batteryRemaining = isBatteryVoltageConfigured() ? calculateBatteryPercentageRemaining() : batteryRemaining;
+    }
+
     mavlink_msg_sys_status_pack(0, 200, &mavMsg,
         // onboard_control_sensors_present Bitmask showing which onboard controllers and sensors are present.
         //Value of 0: not present. Value of 1: present. Indices: 0: 3D gyro, 1: 3D acc, 2: 3D mag, 3: absolute pressure,
@@ -223,11 +235,11 @@ void mavlinkSendSystemStatus(void)
         // load Maximum usage in percent of the mainloop time, (0%: 0, 100%: 1000) should be always below 1000
         0,
         // voltage_battery Battery voltage, in millivolts (1 = 1 millivolt)
-        feature(FEATURE_VBAT) ? getVbat() * 100 : 0,
+        batteryVoltage,
         // current_battery Battery current, in 10*milliamperes (1 = 10 milliampere), -1: autopilot does not measure the current
-        feature(FEATURE_VBAT) ? amperage : -1,
+        batteryAmperage,
         // battery_remaining Remaining battery energy: (0%: 0, 100%: 100), -1: autopilot estimate the remaining battery
-        feature(FEATURE_VBAT) ? calculateBatteryPercentage() : 100,
+        batteryRemaining,
         // drop_rate_comm Communication drops in percent, (0%: 0, 100%: 10'000), (UART, I2C, SPI, CAN), dropped packets on all links (packets that were corrupted on reception on the MAV)
         0,
         // errors_comm Communication errors (UART, I2C, SPI, CAN), dropped packets on all links (packets that were corrupted on reception on the MAV)
@@ -269,12 +281,12 @@ void mavlinkSendRCChannelsAndRSSI(void)
         // chan8_raw RC channel 8 value, in microseconds
         (rxRuntimeConfig.channelCount >= 8) ? rcData[7] : 0,
         // rssi Receive signal strength indicator, 0: 0%, 255: 100%
-        scaleRange(rssi, 0, 1023, 0, 255));
+        constrain(scaleRange(getRssi(), 0, RSSI_MAX_VALUE, 0, 255), 0, 255));
     msgLength = mavlink_msg_to_send_buffer(mavBuffer, &mavMsg);
     mavlinkSerialWrite(mavBuffer, msgLength);
 }
 
-#if defined(GPS)
+#if defined(USE_GPS)
 void mavlinkSendPosition(void)
 {
     uint16_t msgLength;
@@ -287,7 +299,7 @@ void mavlinkSendPosition(void)
         gpsFixType = 1;
     }
     else {
-        if (GPS_numSat < 5) {
+        if (gpsSol.numSat < 5) {
             gpsFixType = 2;
         }
         else {
@@ -301,21 +313,21 @@ void mavlinkSendPosition(void)
         // fix_type 0-1: no fix, 2: 2D fix, 3: 3D fix. Some applications will not use the value of this field unless it is at least two, so always correctly fill in the fix.
         gpsFixType,
         // lat Latitude in 1E7 degrees
-        GPS_coord[LAT],
+        gpsSol.llh.lat,
         // lon Longitude in 1E7 degrees
-        GPS_coord[LON],
+        gpsSol.llh.lon,
         // alt Altitude in 1E3 meters (millimeters) above MSL
-        GPS_altitude * 1000,
+        gpsSol.llh.alt * 1000,
         // eph GPS HDOP horizontal dilution of position in cm (m*100). If unknown, set to: 65535
         65535,
         // epv GPS VDOP horizontal dilution of position in cm (m*100). If unknown, set to: 65535
         65535,
         // vel GPS ground speed (m/s * 100). If unknown, set to: 65535
-        GPS_speed,
+        gpsSol.groundSpeed,
         // cog Course over ground (NOT heading, but direction of movement) in degrees * 100, 0.0..359.99 degrees. If unknown, set to: 65535
-        GPS_ground_course * 10,
+        gpsSol.groundCourse * 10,
         // satellites_visible Number of satellites visible. If unknown, set to 255
-        GPS_numSat);
+        gpsSol.numSat);
     msgLength = mavlink_msg_to_send_buffer(mavBuffer, &mavMsg);
     mavlinkSerialWrite(mavBuffer, msgLength);
 
@@ -324,16 +336,16 @@ void mavlinkSendPosition(void)
         // time_usec Timestamp (microseconds since UNIX epoch or microseconds since system boot)
         micros(),
         // lat Latitude in 1E7 degrees
-        GPS_coord[LAT],
+        gpsSol.llh.lat,
         // lon Longitude in 1E7 degrees
-        GPS_coord[LON],
+        gpsSol.llh.lon,
         // alt Altitude in 1E3 meters (millimeters) above MSL
-        GPS_altitude * 1000,
+        gpsSol.llh.alt * 1000,
         // relative_alt Altitude above ground in meters, expressed as * 1000 (millimeters)
-#if defined(BARO) || defined(SONAR)
-        (sensors(SENSOR_SONAR) || sensors(SENSOR_BARO)) ? altitudeHoldGetEstimatedAltitude() * 10 : GPS_altitude * 1000,
+#if defined(USE_BARO) || defined(USE_RANGEFINDER)
+        (sensors(SENSOR_RANGEFINDER) || sensors(SENSOR_BARO)) ? getEstimatedAltitude() * 10 : gpsSol.llh.alt * 1000,
 #else
-        GPS_altitude * 1000,
+        gpsSol.llh.alt * 1000,
 #endif
         // Ground X Speed (Latitude), expressed as m/s * 100
         0,
@@ -389,29 +401,29 @@ void mavlinkSendHUDAndHeartbeat(void)
     float mavAirSpeed = 0;
     float mavClimbRate = 0;
 
-#if defined(GPS)
+#if defined(USE_GPS)
     // use ground speed if source available
     if (sensors(SENSOR_GPS)) {
-        mavGroundSpeed = GPS_speed / 100.0f;
+        mavGroundSpeed = gpsSol.groundSpeed / 100.0f;
     }
 #endif
 
     // select best source for altitude
-#if defined(BARO) || defined(SONAR)
-    if (sensors(SENSOR_SONAR) || sensors(SENSOR_BARO)) {
+#if defined(USE_BARO) || defined(USE_RANGEFINDER)
+    if (sensors(SENSOR_RANGEFINDER) || sensors(SENSOR_BARO)) {
         // Baro or sonar generally is a better estimate of altitude than GPS MSL altitude
-        mavAltitude = altitudeHoldGetEstimatedAltitude() / 100.0;
+        mavAltitude = getEstimatedAltitude() / 100.0;
     }
-#if defined(GPS)
+#if defined(USE_GPS)
     else if (sensors(SENSOR_GPS)) {
         // No sonar or baro, just display altitude above MLS
-        mavAltitude = GPS_altitude;
+        mavAltitude = gpsSol.llh.alt;
     }
 #endif
-#elif defined(GPS)
+#elif defined(USE_GPS)
     if (sensors(SENSOR_GPS)) {
         // No sonar or baro, just display altitude above MLS
-        mavAltitude = GPS_altitude;
+        mavAltitude = gpsSol.llh.alt;
     }
 #endif
 
@@ -437,7 +449,7 @@ void mavlinkSendHUDAndHeartbeat(void)
         mavModes |= MAV_MODE_FLAG_SAFETY_ARMED;
 
     uint8_t mavSystemType;
-    switch(mixerConfig()->mixerMode)
+    switch (mixerConfig()->mixerMode)
     {
         case MIXER_TRI:
             mavSystemType = MAV_TYPE_TRICOPTER;
@@ -479,12 +491,15 @@ void mavlinkSendHUDAndHeartbeat(void)
         mavCustomMode = 0;      //Stabilize
         mavModes |= MAV_MODE_FLAG_STABILIZE_ENABLED;
     }
-    if (FLIGHT_MODE(BARO_MODE) || FLIGHT_MODE(SONAR_MODE))
+    if (FLIGHT_MODE(BARO_MODE)) {
         mavCustomMode = 2;      //Alt Hold
-    if (FLIGHT_MODE(GPS_HOME_MODE))
+    }
+    if (FLIGHT_MODE(GPS_HOME_MODE)) {
         mavCustomMode = 6;      //Return to Launch
-    if (FLIGHT_MODE(GPS_HOLD_MODE))
+    }
+    if (FLIGHT_MODE(GPS_HOLD_MODE)) {
         mavCustomMode = 16;     //Position Hold (Earlier called Hybrid)
+    }
 
     uint8_t mavSystemState = 0;
     if (ARMING_FLAG(ARMED)) {
@@ -525,7 +540,7 @@ void processMAVLinkTelemetry(void)
         mavlinkSendRCChannelsAndRSSI();
     }
 
-#ifdef GPS
+#ifdef USE_GPS
     if (mavlinkStreamTrigger(MAV_DATA_STREAM_POSITION)) {
         mavlinkSendPosition();
     }

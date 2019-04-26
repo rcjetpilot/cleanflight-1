@@ -51,19 +51,22 @@
 
 /* Includes ------------------------------------------------------------------*/
 #include "stm32f7xx_hal.h"
+#if (USBD_DEBUG_LEVEL > 0)
 #include <stdio.h>
+#endif
 #include <stdlib.h>
 #include <string.h>
 
 /* Exported types ------------------------------------------------------------*/
 /* Exported constants --------------------------------------------------------*/
 /* Common Config */
-#define USBD_MAX_NUM_INTERFACES               1
+#define USBD_MAX_NUM_INTERFACES               3
 #define USBD_MAX_NUM_CONFIGURATION            1
 #define USBD_MAX_STR_DESC_SIZ                 0x100
 #define USBD_SUPPORT_USER_STRING              0
 #define USBD_SELF_POWERED                     1
 #define USBD_DEBUG_LEVEL                      0
+#define MSC_MEDIA_PACKET                      512
 #define USE_USB_FS
 
 /* Exported macro ------------------------------------------------------------*/

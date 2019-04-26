@@ -1,18 +1,21 @@
 /*
- * This file is part of Cleanflight.
+ * This file is part of Cleanflight and Betaflight.
  *
- * Cleanflight is free software: you can redistribute it and/or modify
- * it under the terms of the GNU General Public License as published by
- * the Free Software Foundation, either version 3 of the License, or
- * (at your option) any later version.
+ * Cleanflight and Betaflight are free software. You can redistribute
+ * this software and/or modify this software under the terms of the
+ * GNU General Public License as published by the Free Software
+ * Foundation, either version 3 of the License, or (at your option)
+ * any later version.
  *
- * Cleanflight is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- * GNU General Public License for more details.
+ * Cleanflight and Betaflight are distributed in the hope that they
+ * will be useful, but WITHOUT ANY WARRANTY; without even the implied
+ * warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
+ * See the GNU General Public License for more details.
  *
  * You should have received a copy of the GNU General Public License
- * along with Cleanflight.  If not, see <http://www.gnu.org/licenses/>.
+ * along with this software.
+ *
+ * If not, see <http://www.gnu.org/licenses/>.
  */
 
 #include <stdbool.h>
@@ -22,19 +25,19 @@
 
 #ifdef USE_VCP
 
-#include "io.h"
-#include "system.h"
+#include "drivers/io.h"
+#include "drivers/time.h"
 #include "usb_io.h"
 #include "sdcard.h"
 
 
-#ifdef USB_DETECT_PIN
+#ifdef USE_USB_DETECT
 static IO_t usbDetectPin = IO_NONE;
 #endif
 
 void usbCableDetectDeinit(void)
 {
-#ifdef USB_DETECT_PIN
+#ifdef USE_USB_DETECT
     IOInit(usbDetectPin, OWNER_FREE, 0);
     IOConfigGPIO(usbDetectPin, IOCFG_IN_FLOATING);
     usbDetectPin = IO_NONE;
@@ -43,7 +46,10 @@ void usbCableDetectDeinit(void)
 
 void usbCableDetectInit(void)
 {
-#ifdef USB_DETECT_PIN
+#ifdef USE_USB_DETECT
+#ifndef USB_DETECT_PIN
+#define USB_DETECT_PIN NONE
+#endif
     usbDetectPin = IOGetByTag(IO_TAG(USB_DETECT_PIN));
 
     IOInit(usbDetectPin, OWNER_USB_DETECT, 0);
@@ -55,8 +61,10 @@ bool usbCableIsInserted(void)
 {
     bool result = false;
 
-#ifdef USB_DETECT_PIN
-    result = IORead(usbDetectPin) != 0;
+#ifdef USE_USB_DETECT
+    if (usbDetectPin) {
+        result = IORead(usbDetectPin) != 0;
+    }
 #endif
 
     return result;
@@ -68,10 +76,10 @@ void usbGenerateDisconnectPulse(void)
     IO_t usbPin = IOGetByTag(IO_TAG(PA12));
     IOConfigGPIO(usbPin, IOCFG_OUT_OD);
 
-    IOHi(usbPin);
+    IOLo(usbPin);
 
     delay(200);
 
-    IOLo(usbPin);
+    IOHi(usbPin);
 }
 #endif

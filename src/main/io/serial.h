@@ -1,18 +1,21 @@
 /*
- * This file is part of Cleanflight.
+ * This file is part of Cleanflight and Betaflight.
  *
- * Cleanflight is free software: you can redistribute it and/or modify
- * it under the terms of the GNU General Public License as published by
- * the Free Software Foundation, either version 3 of the License, or
- * (at your option) any later version.
+ * Cleanflight and Betaflight are free software. You can redistribute
+ * this software and/or modify this software under the terms of the
+ * GNU General Public License as published by the Free Software
+ * Foundation, either version 3 of the License, or (at your option)
+ * any later version.
  *
- * Cleanflight is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- * GNU General Public License for more details.
+ * Cleanflight and Betaflight are distributed in the hope that they
+ * will be useful, but WITHOUT ANY WARRANTY; without even the implied
+ * warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
+ * See the GNU General Public License for more details.
  *
  * You should have received a copy of the GNU General Public License
- * along with Cleanflight.  If not, see <http://www.gnu.org/licenses/>.
+ * along with this software.
+ *
+ * If not, see <http://www.gnu.org/licenses/>.
  */
 
 #pragma once
@@ -20,7 +23,7 @@
 #include <stdint.h>
 #include <stdbool.h>
 
-#include "config/parameter_group.h"
+#include "pg/pg.h"
 #include "drivers/serial.h"
 
 typedef enum {
@@ -33,7 +36,7 @@ typedef enum {
     FUNCTION_NONE                = 0,
     FUNCTION_MSP                 = (1 << 0),  // 1
     FUNCTION_GPS                 = (1 << 1),  // 2
-    FUNCTION_TELEMETRY_FRSKY     = (1 << 2),  // 4
+    FUNCTION_TELEMETRY_FRSKY_HUB = (1 << 2),  // 4
     FUNCTION_TELEMETRY_HOTT      = (1 << 3),  // 8
     FUNCTION_TELEMETRY_LTM       = (1 << 4),  // 16
     FUNCTION_TELEMETRY_SMARTPORT = (1 << 5),  // 32
@@ -44,7 +47,12 @@ typedef enum {
     FUNCTION_VTX_SMARTAUDIO      = (1 << 11), // 2048
     FUNCTION_TELEMETRY_IBUS      = (1 << 12), // 4096
     FUNCTION_VTX_TRAMP           = (1 << 13), // 8192
+    FUNCTION_RCDEVICE            = (1 << 14), // 16384
+    FUNCTION_LIDAR_TF            = (1 << 15), // 32768
 } serialPortFunction_e;
+
+#define TELEMETRY_SHAREABLE_PORT_FUNCTIONS_MASK (FUNCTION_TELEMETRY_FRSKY_HUB | FUNCTION_TELEMETRY_LTM | FUNCTION_TELEMETRY_MAVLINK)
+#define TELEMETRY_PORT_FUNCTIONS_MASK (TELEMETRY_SHAREABLE_PORT_FUNCTIONS_MASK | FUNCTION_TELEMETRY_HOTT | FUNCTION_TELEMETRY_SMARTPORT)
 
 typedef enum {
     BAUD_AUTO = 0,
@@ -73,8 +81,8 @@ typedef enum {
     SERIAL_PORT_USART1 = 0,
     SERIAL_PORT_USART2,
     SERIAL_PORT_USART3,
-    SERIAL_PORT_USART4,
-    SERIAL_PORT_USART5,
+    SERIAL_PORT_UART4,
+    SERIAL_PORT_UART5,
     SERIAL_PORT_USART6,
     SERIAL_PORT_USART7,
     SERIAL_PORT_USART8,
@@ -85,19 +93,20 @@ typedef enum {
 
 extern const serialPortIdentifier_e serialPortIdentifiers[SERIAL_PORT_COUNT];
 
-#define SERIAL_PORT_IDENTIFIER_TO_RESOURCE_INDEX(x) (((x) <= SERIAL_PORT_USART8) ? (x) : (RESOURCE_SOFT_OFFSET + ((x) - SERIAL_PORT_SOFTSERIAL1)))
+#define SERIAL_PORT_IDENTIFIER_TO_INDEX(x) (((x) <= SERIAL_PORT_USART8) ? (x) : (RESOURCE_SOFT_OFFSET + ((x) - SERIAL_PORT_SOFTSERIAL1)))
+
+#define SERIAL_PORT_IDENTIFIER_TO_UARTDEV(x) ((x) - SERIAL_PORT_USART1 + UARTDEV_1)
 
 //
 // runtime
 //
 typedef struct serialPortUsage_s {
-    serialPortIdentifier_e identifier;
     serialPort_t *serialPort;
     serialPortFunction_e function;
+    serialPortIdentifier_e identifier;
 } serialPortUsage_t;
 
 serialPort_t *findSharedSerialPort(uint16_t functionMask, serialPortFunction_e sharedWithFunction);
-serialPort_t *findNextSharedSerialPort(uint16_t functionMask, serialPortFunction_e sharedWithFunction);
 
 //
 // configuration
@@ -137,6 +146,7 @@ serialPortConfig_t *findNextSerialPortConfig(serialPortFunction_e function);
 portSharing_e determinePortSharing(const serialPortConfig_t *portConfig, serialPortFunction_e function);
 bool isSerialPortShared(const serialPortConfig_t *portConfig, uint16_t functionMask, serialPortFunction_e sharedWithFunction);
 
+void pgResetFn_serialConfig(serialConfig_t *serialConfig); //!!TODO remove need for this
 serialPortUsage_t *findSerialPortUsageByIdentifier(serialPortIdentifier_e identifier);
 int findSerialPortIndexByIdentifier(serialPortIdentifier_e identifier);
 //
@@ -146,9 +156,10 @@ serialPort_t *openSerialPort(
     serialPortIdentifier_e identifier,
     serialPortFunction_e function,
     serialReceiveCallbackPtr rxCallback,
+    void *rxCallbackData,
     uint32_t baudrate,
-    portMode_t mode,
-    portOptions_t options
+    portMode_e mode,
+    portOptions_e options
 );
 void closeSerialPort(serialPort_t *serialPort);
 
@@ -160,5 +171,4 @@ baudRate_e lookupBaudRateIndex(uint32_t baudRate);
 //
 // msp/cli/bootloader
 //
-void serialEvaluateNonMspData(serialPort_t *serialPort, uint8_t receivedChar);
 void serialPassthrough(serialPort_t *left, serialPort_t *right, serialConsumer *leftC, serialConsumer *rightC);

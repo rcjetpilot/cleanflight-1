@@ -1,14 +1,34 @@
+/*
+ * This file is part of Cleanflight and Betaflight.
+ *
+ * Cleanflight and Betaflight are free software. You can redistribute
+ * this software and/or modify this software under the terms of the
+ * GNU General Public License as published by the Free Software
+ * Foundation, either version 3 of the License, or (at your option)
+ * any later version.
+ *
+ * Cleanflight and Betaflight are distributed in the hope that they
+ * will be useful, but WITHOUT ANY WARRANTY; without even the implied
+ * warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
+ * See the GNU General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this software.
+ *
+ * If not, see <http://www.gnu.org/licenses/>.
+ */
+
 #include <stdbool.h>
 #include <stdint.h>
 #include <string.h>
 
 #include "platform.h"
 
-#include "nvic.h"
-#include "io_impl.h"
-#include "exti.h"
-
 #ifdef USE_EXTI
+
+#include "drivers/nvic.h"
+#include "io_impl.h"
+#include "drivers/exti.h"
 
 typedef struct {
     extiCallbackRec_t* handler;
@@ -78,7 +98,7 @@ void EXTIConfig(IO_t io, extiCallbackRec_t *cb, int irqPriority, ioConfig_t conf
     (void)config;
     int chIdx;
     chIdx = IO_GPIOPinIdx(io);
-    if(chIdx < 0)
+    if (chIdx < 0)
         return;
     extiChannelRec_t *rec = &extiChannelRecs[chIdx];
     int group = extiGroups[chIdx];
@@ -96,7 +116,7 @@ void EXTIConfig(IO_t io, extiCallbackRec_t *cb, int irqPriority, ioConfig_t conf
 
     //EXTI_ClearITPendingBit(extiLine);
 
-    if(extiGroupPriority[group] > irqPriority) {
+    if (extiGroupPriority[group] > irqPriority) {
         extiGroupPriority[group] = irqPriority;
         HAL_NVIC_SetPriority(extiGroupIRQn[group], NVIC_PRIORITY_BASE(irqPriority), NVIC_PRIORITY_SUB(irqPriority));
         HAL_NVIC_EnableIRQ(extiGroupIRQn[group]);
@@ -108,7 +128,7 @@ void EXTIConfig(IO_t io, extiCallbackRec_t *cb, int irqPriority, EXTITrigger_Typ
 {
     int chIdx;
     chIdx = IO_GPIOPinIdx(io);
-    if(chIdx < 0)
+    if (chIdx < 0)
         return;
     extiChannelRec_t *rec = &extiChannelRecs[chIdx];
     int group = extiGroups[chIdx];
@@ -134,7 +154,7 @@ void EXTIConfig(IO_t io, extiCallbackRec_t *cb, int irqPriority, EXTITrigger_Typ
     EXTIInit.EXTI_LineCmd = ENABLE;
     EXTI_Init(&EXTIInit);
 
-    if(extiGroupPriority[group] > irqPriority) {
+    if (extiGroupPriority[group] > irqPriority) {
         extiGroupPriority[group] = irqPriority;
 
         NVIC_InitTypeDef NVIC_InitStructure;
@@ -154,7 +174,7 @@ void EXTIRelease(IO_t io)
 
     int chIdx;
     chIdx = IO_GPIOPinIdx(io);
-    if(chIdx < 0)
+    if (chIdx < 0)
         return;
     extiChannelRec_t *rec = &extiChannelRecs[chIdx];
     rec->handler = NULL;
@@ -164,18 +184,18 @@ void EXTIEnable(IO_t io, bool enable)
 {
 #if defined(STM32F1) || defined(STM32F4) || defined(STM32F7)
     uint32_t extiLine = IO_EXTI_Line(io);
-    if(!extiLine)
+    if (!extiLine)
         return;
-    if(enable)
+    if (enable)
         EXTI->IMR |= extiLine;
     else
         EXTI->IMR &= ~extiLine;
 #elif defined(STM32F303xC)
     int extiLine = IO_EXTI_Line(io);
-    if(extiLine < 0)
+    if (extiLine < 0)
         return;
     // assume extiLine < 32 (valid for all EXTI pins)
-    if(enable)
+    if (enable)
         EXTI->IMR |= 1 << extiLine;
     else
         EXTI->IMR &= ~(1 << extiLine);
@@ -188,7 +208,7 @@ void EXTI_IRQHandler(void)
 {
     uint32_t exti_active = EXTI->IMR & EXTI->PR;
 
-    while(exti_active) {
+    while (exti_active) {
         unsigned idx = 31 - __builtin_clz(exti_active);
         uint32_t mask = 1 << idx;
         extiChannelRecs[idx].handler->fn(extiChannelRecs[idx].handler);
@@ -207,9 +227,9 @@ void EXTI_IRQHandler(void)
 
 _EXTI_IRQ_HANDLER(EXTI0_IRQHandler);
 _EXTI_IRQ_HANDLER(EXTI1_IRQHandler);
-#if defined(STM32F1) || defined(STM32F7)
+#if defined(STM32F1) || defined(STM32F4) || defined(STM32F7)
 _EXTI_IRQ_HANDLER(EXTI2_IRQHandler);
-#elif defined(STM32F3) || defined(STM32F4)
+#elif defined(STM32F3)
 _EXTI_IRQ_HANDLER(EXTI2_TS_IRQHandler);
 #else
 # warning "Unknown CPU"

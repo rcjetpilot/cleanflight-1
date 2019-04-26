@@ -64,6 +64,8 @@
   */
 
 #include "stm32f7xx.h"
+#include "system_stm32f7xx.h"
+#include "platform.h"
 
 #if !defined  (HSE_VALUE)
   #define HSE_VALUE    ((uint32_t)8000000) /*!< Default value of the External oscillator in Hz */
@@ -98,15 +100,6 @@
   * @{
   */
 
-/************************* Miscellaneous Configuration ************************/
-
-/*!< Uncomment the following line if you need to relocate your vector Table in
-     Internal SRAM. */
-/* #define VECT_TAB_SRAM */
-#define VECT_TAB_OFFSET  0x00 /*!< Vector Table base offset field.
-                                   This value must be a multiple of 0x200. */
-/******************************************************************************/
-
 /**
   * @}
   */
@@ -131,7 +124,9 @@
                is no need to call the 2 first functions listed above, since SystemCoreClock
                variable is updated automatically.
   */
-  uint32_t SystemCoreClock = (PLL_N / PLL_P) * 1000000;
+  uint32_t SystemCoreClock;
+  uint32_t pll_p = PLL_P, pll_n = PLL_N, pll_q = PLL_Q;
+
   const uint8_t AHBPrescTable[16] = {0, 0, 0, 0, 0, 0, 0, 0, 1, 2, 3, 4, 6, 7, 8, 9};
   const uint8_t APBPrescTable[8] = {0, 0, 0, 0, 1, 2, 3, 4};
 
@@ -156,27 +151,38 @@
 
       __HAL_PWR_VOLTAGESCALING_CONFIG(PWR_REGULATOR_VOLTAGE_SCALE1);
 
+#ifdef CLOCK_SOURCE_USE_HSI
+      /* Enable HSI Oscillator and activate PLL with HSI as source */
+      RCC_OscInitStruct.OscillatorType       = RCC_OSCILLATORTYPE_HSI;
+      RCC_OscInitStruct.HSIState             = RCC_HSI_ON;
+      RCC_OscInitStruct.HSICalibrationValue  = RCC_HSICALIBRATION_DEFAULT;
+      RCC_OscInitStruct.PLL.PLLState         = RCC_PLL_ON;
+      RCC_OscInitStruct.PLL.PLLSource        = RCC_PLLSOURCE_HSI;
+      RCC_OscInitStruct.PLL.PLLM             = 16;
+      RCC_OscInitStruct.PLL.PLLN             = 432;
+      RCC_OscInitStruct.PLL.PLLP             = RCC_PLLP_DIV2;
+      RCC_OscInitStruct.PLL.PLLQ             = 9;
+#else
       /* Enable HSE Oscillator and activate PLL with HSE as source */
       RCC_OscInitStruct.OscillatorType = RCC_OSCILLATORTYPE_HSE;
       RCC_OscInitStruct.HSEState = RCC_HSE_ON;
       RCC_OscInitStruct.PLL.PLLState = RCC_PLL_ON;
       RCC_OscInitStruct.PLL.PLLSource = RCC_PLLSOURCE_HSE;
       RCC_OscInitStruct.PLL.PLLM = PLL_M;
-      RCC_OscInitStruct.PLL.PLLN = PLL_N;
-      RCC_OscInitStruct.PLL.PLLP = PLL_P;
-      RCC_OscInitStruct.PLL.PLLQ = PLL_Q;
+      RCC_OscInitStruct.PLL.PLLN = pll_n;
+      RCC_OscInitStruct.PLL.PLLP = pll_p;
+      RCC_OscInitStruct.PLL.PLLQ = pll_q;
+#endif
 
       ret = HAL_RCC_OscConfig(&RCC_OscInitStruct);
-      if(ret != HAL_OK)
-      {
-        while(1) { ; }
+      if (ret != HAL_OK) {
+        while (1);
       }
 
       /* Activate the OverDrive to reach the 216 MHz Frequency */
       ret = HAL_PWREx_EnableOverDrive();
-      if(ret != HAL_OK)
-      {
-        while(1) { ; }
+      if (ret != HAL_OK) {
+        while (1);
       }
       /* Select PLLSAI output as USB clock source */
       PeriphClkInitStruct.PeriphClockSelection = RCC_PERIPHCLK_CLK48;
@@ -184,9 +190,8 @@
       PeriphClkInitStruct.PLLSAI.PLLSAIN = PLL_SAIN;
       PeriphClkInitStruct.PLLSAI.PLLSAIQ = PLL_SAIQ;
       PeriphClkInitStruct.PLLSAI.PLLSAIP = PLL_SAIP;
-      if(HAL_RCCEx_PeriphCLKConfig(&PeriphClkInitStruct)  != HAL_OK)
-      {
-        while(1) {};
+      if (HAL_RCCEx_PeriphCLKConfig(&PeriphClkInitStruct) != HAL_OK) {
+        while (1);
       }
 
       /* Select PLL as system clock source and configure the HCLK, PCLK1 and PCLK2 clocks dividers */
@@ -197,9 +202,8 @@
       RCC_ClkInitStruct.APB2CLKDivider = RCC_HCLK_DIV2;
 
       ret = HAL_RCC_ClockConfig(&RCC_ClkInitStruct, FLASH_LATENCY_7);
-      if(ret != HAL_OK)
-      {
-        while(1) { ; }
+      if (ret != HAL_OK) {
+        while (1);
       }
 
       PeriphClkInitStruct.PeriphClockSelection = RCC_PERIPHCLK_USART1|RCC_PERIPHCLK_USART2
@@ -221,9 +225,8 @@
       PeriphClkInitStruct.I2c3ClockSelection = RCC_I2C3CLKSOURCE_PCLK1;
       PeriphClkInitStruct.I2c4ClockSelection = RCC_I2C4CLKSOURCE_PCLK1;
       ret = HAL_RCCEx_PeriphCLKConfig(&PeriphClkInitStruct);
-      if (ret != HAL_OK)
-      {
-          while(1) { ; }
+      if (ret != HAL_OK) {
+          while (1);
       }
 
     // Activating the timerprescalers while the APBx prescalers are 1/2/4 will connect the TIMxCLK to HCLK which has been configured to 216MHz
@@ -231,6 +234,60 @@
 
     SystemCoreClockUpdate();
   }
+
+typedef struct pllConfig_s {
+  uint16_t n;
+  uint16_t p;
+  uint16_t q;
+} pllConfig_t;
+
+static const pllConfig_t overclockLevels[] = {
+  { PLL_N, PLL_P, PLL_Q },    // default
+  { 480, RCC_PLLP_DIV2, 10 }, // 240 MHz
+};
+
+// 8 bytes of memory located at the very end of RAM, expected to be unoccupied
+#define REQUEST_OVERCLOCK               (*(__IO uint32_t *) (BKPSRAM_BASE + 8))
+#define CURRENT_OVERCLOCK_LEVEL         (*(__IO uint32_t *) (BKPSRAM_BASE + 12))
+#define REQUEST_OVERCLOCK_MAGIC_COOKIE  0xBABEFACE
+
+void SystemInitOC(void) {
+    __PWR_CLK_ENABLE();
+    __BKPSRAM_CLK_ENABLE();
+    HAL_PWR_EnableBkUpAccess();
+
+    if (REQUEST_OVERCLOCK_MAGIC_COOKIE == REQUEST_OVERCLOCK) {
+      const uint32_t overclockLevel = CURRENT_OVERCLOCK_LEVEL;
+
+      /* PLL setting for overclocking */
+      if (overclockLevel < ARRAYLEN(overclockLevels)) {
+        const pllConfig_t * const pll = overclockLevels + overclockLevel;
+
+        pll_n = pll->n;
+        pll_p = pll->p;
+        pll_q = pll->q;
+      }
+
+      REQUEST_OVERCLOCK = 0;
+    }
+}
+
+void OverclockRebootIfNecessary(uint32_t overclockLevel)
+{
+    if (overclockLevel >= ARRAYLEN(overclockLevels)) {
+        return;
+    }
+
+    const pllConfig_t * const pll = overclockLevels + overclockLevel;
+
+    // Reboot to adjust overclock frequency
+    if (SystemCoreClock != (uint32_t)(pll->n / pll->p) * 1000000) {
+        REQUEST_OVERCLOCK = REQUEST_OVERCLOCK_MAGIC_COOKIE;
+        CURRENT_OVERCLOCK_LEVEL = overclockLevel;
+        __disable_irq();
+        NVIC_SystemReset();
+    }
+}
 
 /**
   * @}
@@ -249,54 +306,64 @@
   */
 void SystemInit(void)
 {
-  /* FPU settings ------------------------------------------------------------*/
-  #if (__FPU_PRESENT == 1) && (__FPU_USED == 1)
+    SystemInitOC();
+
+    SystemCoreClock = (pll_n / pll_p) * 1000000;
+
+    /* FPU settings ------------------------------------------------------------*/
+#if (__FPU_PRESENT == 1) && (__FPU_USED == 1)
     SCB->CPACR |= ((3UL << 10*2)|(3UL << 11*2));  /* set CP10 and CP11 Full Access */
-  #endif
-  /* Reset the RCC clock configuration to the default reset state ------------*/
-  /* Set HSION bit */
-  RCC->CR |= (uint32_t)0x00000001;
-
-  /* Reset CFGR register */
-  RCC->CFGR = 0x00000000;
-
-  /* Reset HSEON, CSSON and PLLON bits */
-  RCC->CR &= (uint32_t)0xFEF6FFFF;
-
-  /* Reset PLLCFGR register */
-  RCC->PLLCFGR = 0x24003010;
-
-  /* Reset HSEBYP bit */
-  RCC->CR &= (uint32_t)0xFFFBFFFF;
-
-  /* Disable all interrupts */
-  RCC->CIR = 0x00000000;
-
-  /* Configure the Vector Table location add offset address ------------------*/
-#ifdef VECT_TAB_SRAM
-  SCB->VTOR = RAMDTCM_BASE | VECT_TAB_OFFSET; /* Vector Table Relocation in Internal SRAM */
-#else
-  SCB->VTOR = FLASH_BASE | VECT_TAB_OFFSET; /* Vector Table Relocation in Internal FLASH */
 #endif
+    /* Reset the RCC clock configuration to the default reset state ------------*/
+    /* Set HSION bit */
+    RCC->CR |= (uint32_t)0x00000001;
 
-  /* Enable I-Cache */
-  SCB_EnableICache();
+    /* Reset CFGR register */
+    RCC->CFGR = 0x00000000;
 
-  /* Enable D-Cache */
-  //SCB_EnableDCache();
+    /* Reset HSEON, CSSON and PLLON bits */
+    RCC->CR &= (uint32_t)0xFEF6FFFF;
 
-  /* Configure the system clock to 216 MHz */
-  SystemClock_Config();
+    /* Reset PLLCFGR register */
+    RCC->PLLCFGR = 0x24003010;
 
-  if(SystemCoreClock != 216000000)
-  {
-      while(1)
-      {
-          // There is a mismatch between the configured clock and the expected clock in portable.h
-      }
-  }
+    /* Reset HSEBYP bit */
+    RCC->CR &= (uint32_t)0xFFFBFFFF;
 
+    /* Disable all interrupts */
+    RCC->CIR = 0x00000000;
 
+    /* Configure the Vector Table location add offset address ------------------*/
+    extern uint8_t isr_vector_table_base;
+    const uint32_t vtorOffset = (uint32_t) &isr_vector_table_base;
+#define VTOR_OFFSET_ALIGNMENT 0x200
+#define VTOR_OFFSET_MASK (VTOR_OFFSET_ALIGNMENT - 1)
+    STATIC_ASSERT((vtorOffset % VTOR_OFFSET_MASK) == 0, isr_vector_table_base_is_not_512_byte_aligned);
+    SCB->VTOR = vtorOffset;
+#undef VTOR_OFFSET_MASK
+#undef VTOR_OFFSET_ALIGNMENT
+
+    /* Enable I-Cache */
+    if (INSTRUCTION_CACHE_ENABLE) {
+        SCB_EnableICache();
+    }
+
+    /* Enable D-Cache */
+    if (DATA_CACHE_ENABLE) {
+        SCB_EnableDCache();
+    }
+
+    if (PREFETCH_ENABLE) {
+        LL_FLASH_EnablePrefetch();
+    }
+
+    /* Configure the system clock to specified frequency */
+    SystemClock_Config();
+
+    if (SystemCoreClock != (pll_n / pll_p) * 1000000) {
+        // There is a mismatch between the configured clock and the expected clock in portable.h
+        while (1);
+    }
 }
 
 /**
@@ -337,61 +404,46 @@ void SystemInit(void)
   */
 void SystemCoreClockUpdate(void)
 {
-  uint32_t tmp = 0, pllvco = 0, pllp = 2, pllsource = 0, pllm = 2;
+    uint32_t tmp = 0, pllvco = 0, pllp = 2, pllsource = 0, pllm = 2;
 
-  /* Get SYSCLK source -------------------------------------------------------*/
-  tmp = RCC->CFGR & RCC_CFGR_SWS;
+    /* Get SYSCLK source -------------------------------------------------------*/
+    tmp = RCC->CFGR & RCC_CFGR_SWS;
 
-  switch (tmp)
-  {
+    switch (tmp) {
     case 0x00:  /* HSI used as system clock source */
-      SystemCoreClock = HSI_VALUE;
-      break;
+        SystemCoreClock = HSI_VALUE;
+        break;
     case 0x04:  /* HSE used as system clock source */
-      SystemCoreClock = HSE_VALUE;
-      break;
+        SystemCoreClock = HSE_VALUE;
+        break;
     case 0x08:  /* PLL used as system clock source */
 
-      /* PLL_VCO = (HSE_VALUE or HSI_VALUE / PLL_M) * PLL_N
+        /* PLL_VCO = (HSE_VALUE or HSI_VALUE / PLL_M) * PLL_N
          SYSCLK = PLL_VCO / PLL_P
          */
-      pllsource = (RCC->PLLCFGR & RCC_PLLCFGR_PLLSRC) >> 22;
-      pllm = RCC->PLLCFGR & RCC_PLLCFGR_PLLM;
+        pllsource = (RCC->PLLCFGR & RCC_PLLCFGR_PLLSRC) >> 22;
+        pllm = RCC->PLLCFGR & RCC_PLLCFGR_PLLM;
 
-      if (pllsource != 0)
-      {
-        /* HSE used as PLL clock source */
-        pllvco = (HSE_VALUE / pllm) * ((RCC->PLLCFGR & RCC_PLLCFGR_PLLN) >> 6);
-      }
-      else
-      {
-        /* HSI used as PLL clock source */
-        pllvco = (HSI_VALUE / pllm) * ((RCC->PLLCFGR & RCC_PLLCFGR_PLLN) >> 6);
-      }
+        if (pllsource != 0) {
+            /* HSE used as PLL clock source */
+            pllvco = (HSE_VALUE / pllm) * ((RCC->PLLCFGR & RCC_PLLCFGR_PLLN) >> 6);
+        } else {
+            /* HSI used as PLL clock source */
+            pllvco = (HSI_VALUE / pllm) * ((RCC->PLLCFGR & RCC_PLLCFGR_PLLN) >> 6);
+        }
 
-      pllp = (((RCC->PLLCFGR & RCC_PLLCFGR_PLLP) >>16) + 1 ) *2;
-      SystemCoreClock = pllvco/pllp;
-      break;
+        pllp = (((RCC->PLLCFGR & RCC_PLLCFGR_PLLP) >> 16) + 1) * 2;
+        SystemCoreClock = pllvco/pllp;
+        break;
     default:
-      SystemCoreClock = HSI_VALUE;
-      break;
-  }
-  /* Compute HCLK frequency --------------------------------------------------*/
-  /* Get HCLK prescaler */
-  tmp = AHBPrescTable[((RCC->CFGR & RCC_CFGR_HPRE) >> 4)];
-  /* HCLK frequency */
-  SystemCoreClock >>= tmp;
+        SystemCoreClock = HSI_VALUE;
+        break;
+    }
+    /* Compute HCLK frequency --------------------------------------------------*/
+    /* Get HCLK prescaler */
+    tmp = AHBPrescTable[((RCC->CFGR & RCC_CFGR_HPRE) >> 4)];
+    /* HCLK frequency */
+    SystemCoreClock >>= tmp;
 }
 
-/**
-  * @}
-  */
-
-/**
-  * @}
-  */
-
-/**
-  * @}
-  */
 /************************ (C) COPYRIGHT STMicroelectronics *****END OF FILE****/

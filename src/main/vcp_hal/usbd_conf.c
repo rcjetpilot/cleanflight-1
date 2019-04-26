@@ -46,12 +46,22 @@
   */
 
 /* Includes ------------------------------------------------------------------*/
+#include "common/maths.h"
+
 #include "stm32f7xx_hal.h"
 #include "usbd_core.h"
 #include "usbd_desc.h"
 #include "usbd_cdc.h"
 #include "usbd_conf.h"
 #include "usbd_cdc_interface.h"
+
+#include "platform.h"
+#include "pg/pg.h"
+#include "pg/usb.h"
+
+#ifdef USE_USB_MSC
+#include "drivers/usb_msc.h"
+#endif
 
 /* Private typedef -----------------------------------------------------------*/
 /* Private define ------------------------------------------------------------*/
@@ -84,7 +94,7 @@ void HAL_PCD_MspInit(PCD_HandleTypeDef *hpcd)
 {
   GPIO_InitTypeDef  GPIO_InitStruct;
 
-  if(hpcd->Instance == USB_OTG_FS)
+  if (hpcd->Instance == USB_OTG_FS)
   {
     /* Configure USB FS GPIOs */
     __HAL_RCC_GPIOA_CLK_ENABLE();
@@ -97,7 +107,7 @@ void HAL_PCD_MspInit(PCD_HandleTypeDef *hpcd)
     GPIO_InitStruct.Alternate = GPIO_AF10_OTG_FS;
     HAL_GPIO_Init(GPIOA, &GPIO_InitStruct);
 
-    if(hpcd->Init.vbus_sensing_enable == 1)
+    if (hpcd->Init.vbus_sensing_enable == 1)
     {
       /* Configure VBUS Pin */
       GPIO_InitStruct.Pin = GPIO_PIN_9;
@@ -122,7 +132,7 @@ void HAL_PCD_MspInit(PCD_HandleTypeDef *hpcd)
     /* Enable USBFS Interrupt */
     HAL_NVIC_EnableIRQ(OTG_FS_IRQn);
   }
-  else if(hpcd->Instance == USB_OTG_HS)
+  else if (hpcd->Instance == USB_OTG_HS)
   {
 #ifdef USE_USB_HS_IN_FS
 
@@ -136,7 +146,7 @@ void HAL_PCD_MspInit(PCD_HandleTypeDef *hpcd)
     GPIO_InitStruct.Alternate = GPIO_AF12_OTG_HS_FS;
     HAL_GPIO_Init(GPIOB, &GPIO_InitStruct);
 
-    if(hpcd->Init.vbus_sensing_enable == 1)
+    if (hpcd->Init.vbus_sensing_enable == 1)
     {
       /* Configure VBUS Pin */
       GPIO_InitStruct.Pin = GPIO_PIN_13 ;
@@ -216,13 +226,13 @@ void HAL_PCD_MspInit(PCD_HandleTypeDef *hpcd)
   */
 void HAL_PCD_MspDeInit(PCD_HandleTypeDef *hpcd)
 {
-  if(hpcd->Instance == USB_OTG_FS)
+  if (hpcd->Instance == USB_OTG_FS)
   {
     /* Disable USB FS Clock */
     __HAL_RCC_USB_OTG_FS_CLK_DISABLE();
     __HAL_RCC_SYSCFG_CLK_DISABLE();
   }
-  else if(hpcd->Instance == USB_OTG_HS)
+  else if (hpcd->Instance == USB_OTG_HS)
   {
     /* Disable USB HS Clocks */
     __HAL_RCC_USB_OTG_HS_CLK_DISABLE();
@@ -286,7 +296,7 @@ void HAL_PCD_ResetCallback(PCD_HandleTypeDef *hpcd)
   USBD_SpeedTypeDef speed = USBD_SPEED_FULL;
 
   /* Set USB Current Speed */
-  switch(hpcd->Init.speed)
+  switch (hpcd->Init.speed)
   {
   case PCD_SPEED_HIGH:
     speed = USBD_SPEED_HIGH;
@@ -402,9 +412,26 @@ USBD_StatusTypeDef USBD_LL_Init(USBD_HandleTypeDef *pdev)
   /* Initialize LL Driver */
   HAL_PCD_Init(&hpcd);
 
+
+#ifdef USE_USB_CDC_HID
+#ifdef USE_USB_MSC
+  if (usbDevConfig()->type == COMPOSITE && !mscCheckBoot()) {
+#else
+  if (usbDevConfig()->type == COMPOSITE) {
+#endif
+    HAL_PCDEx_SetRxFiFo(&hpcd, 0x80);
+    HAL_PCDEx_SetTxFiFo(&hpcd, 0, 0x20);
+    HAL_PCDEx_SetTxFiFo(&hpcd, 1, 0x40);
+    HAL_PCDEx_SetTxFiFo(&hpcd, 2, 0x20);
+    HAL_PCDEx_SetTxFiFo(&hpcd, 3, 0x40);
+  } else {
+#endif /* CDC_HID */
   HAL_PCDEx_SetRxFiFo(&hpcd, 0x80);
   HAL_PCDEx_SetTxFiFo(&hpcd, 0, 0x40);
   HAL_PCDEx_SetTxFiFo(&hpcd, 1, 0x80);
+#ifdef USE_USB_CDC_HID
+  }
+#endif /* CDC_HID */
 #endif
 
 #ifdef USE_USB_HS
@@ -559,7 +586,7 @@ uint8_t USBD_LL_IsStallEP(USBD_HandleTypeDef *pdev, uint8_t ep_addr)
 {
   PCD_HandleTypeDef *hpcd = pdev->pData;
 
-  if((ep_addr & 0x80) == 0x80)
+  if ((ep_addr & 0x80) == 0x80)
   {
     return hpcd->IN_ep[ep_addr & 0x7F].is_stall;
   }

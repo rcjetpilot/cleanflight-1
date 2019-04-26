@@ -1,18 +1,21 @@
 /*
- * This file is part of Cleanflight.
+ * This file is part of Cleanflight and Betaflight.
  *
- * Cleanflight is free software: you can redistribute it and/or modify
- * it under the terms of the GNU General Public License as published by
- * the Free Software Foundation, either version 3 of the License, or
- * (at your option) any later version.
+ * Cleanflight and Betaflight are free software. You can redistribute
+ * this software and/or modify this software under the terms of the
+ * GNU General Public License as published by the Free Software
+ * Foundation, either version 3 of the License, or (at your option)
+ * any later version.
  *
- * Cleanflight is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- * GNU General Public License for more details.
+ * Cleanflight and Betaflight are distributed in the hope that they
+ * will be useful, but WITHOUT ANY WARRANTY; without even the implied
+ * warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
+ * See the GNU General Public License for more details.
  *
  * You should have received a copy of the GNU General Public License
- * along with Cleanflight.  If not, see <http://www.gnu.org/licenses/>.
+ * along with this software.
+ *
+ * If not, see <http://www.gnu.org/licenses/>.
  */
 
 #include <stdbool.h>
@@ -23,14 +26,13 @@
 
 #include "build/build_config.h"
 
-#include "drivers/system.h"
+#include "drivers/accgyro/accgyro.h"
+#include "drivers/accgyro/accgyro_mpu.h"
+#include "drivers/accgyro/accgyro_mpu6500.h"
 #include "drivers/bus_spi.h"
-#include "drivers/sensor.h"
 #include "drivers/io.h"
-#include "drivers/exti.h"
-#include "drivers/accgyro.h"
-#include "drivers/accgyro_mpu.h"
-#include "drivers/accgyro_mpu6500.h"
+#include "drivers/time.h"
+#include "drivers/system.h"
 
 #include "hardware_revision.h"
 
@@ -64,14 +66,14 @@ uint8_t detectSpiDevice(void)
     nazeSpiCsPin = IOGetByTag(IO_TAG(NAZE_SPI_CS_PIN));
 #endif
 
-    uint8_t out[] = { M25P16_INSTRUCTION_RDID, 0, 0, 0 };
+    const uint8_t out[] = { M25P16_INSTRUCTION_RDID, 0, 0, 0 };
     uint8_t in[4];
     uint32_t flash_id;
 
     // try autodetect flash chip
     delay(50); // short delay required after initialisation of SPI device instance.
     ENABLE_SPI_CS;
-    spiTransfer(NAZE_SPI_INSTANCE, in, out, sizeof(out));
+    spiTransfer(NAZE_SPI_INSTANCE, out, in, sizeof(out));
     DISABLE_SPI_CS;
 
     flash_id = in[1] << 16 | in[2] << 8 | in[3];
@@ -104,27 +106,18 @@ void updateHardwareRevision(void)
 #endif
 }
 
-const extiConfig_t *selectMPUIntExtiConfigByHardwareRevision(void)
+ioTag_t selectMPUIntExtiConfigByHardwareRevision(void)
 {
-    // MPU_INT output on rev5 hardware PC13
-    static const extiConfig_t nazeRev5MPUIntExtiConfig = {
-        .tag = IO_TAG(PC13)
-    };
 
 #ifdef AFROMINI
-    return &nazeRev5MPUIntExtiConfig;
+    return IO_TAG(PC13);
 #else
-    // MPU_INT output on rev4 PB13
-    static const extiConfig_t nazeRev4MPUIntExtiConfig = {
-        .tag = IO_TAG(PB13)
-    };
-
     if (hardwareRevision < NAZE32_REV5) {
-        return &nazeRev4MPUIntExtiConfig;
-    }
-    else {
-        return &nazeRev5MPUIntExtiConfig;
+        // MPU_INT output on rev4 PB13
+        return IO_TAG(PB13);
+    } else {
+        // MPU_INT output on rev5 PC13
+        return IO_TAG(PC13);
     }
 #endif
 }
-

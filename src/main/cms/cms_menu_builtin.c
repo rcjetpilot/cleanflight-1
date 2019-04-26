@@ -1,18 +1,21 @@
 /*
- * This file is part of Cleanflight.
+ * This file is part of Cleanflight and Betaflight.
  *
- * Cleanflight is free software: you can redistribute it and/or modify
- * it under the terms of the GNU General Public License as published by
- * the Free Software Foundation, either version 3 of the License, or
- * (at your option) any later version.
+ * Cleanflight and Betaflight are free software. You can redistribute
+ * this software and/or modify this software under the terms of the
+ * GNU General Public License as published by the Free Software
+ * Foundation, either version 3 of the License, or (at your option)
+ * any later version.
  *
- * Cleanflight is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- * GNU General Public License for more details.
+ * Cleanflight and Betaflight are distributed in the hope that they
+ * will be useful, but WITHOUT ANY WARRANTY; without even the implied
+ * warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
+ * See the GNU General Public License for more details.
  *
  * You should have received a copy of the GNU General Public License
- * along with Cleanflight.  If not, see <http://www.gnu.org/licenses/>.
+ * along with this software.
+ *
+ * If not, see <http://www.gnu.org/licenses/>.
  */
 
 //
@@ -26,7 +29,7 @@
 
 #include "platform.h"
 
-#ifdef CMS
+#ifdef USE_CMS
 
 #include "build/version.h"
 
@@ -40,32 +43,36 @@
 
 #include "cms/cms_menu_imu.h"
 #include "cms/cms_menu_blackbox.h"
-#include "cms/cms_menu_vtx.h"
 #include "cms/cms_menu_osd.h"
 #include "cms/cms_menu_ledstrip.h"
 #include "cms/cms_menu_misc.h"
+#include "cms/cms_menu_power.h"
 
-// User supplied menus
+// VTX supplied menus
 
-#include "io/vtx_smartaudio_cms.h"
-#include "io/vtx_tramp.h"
+#include "cms/cms_menu_vtx_rtc6705.h"
+#include "cms/cms_menu_vtx_smartaudio.h"
+#include "cms/cms_menu_vtx_tramp.h"
+
 
 // Info
 
-static char infoGitRev[GIT_SHORT_REVISION_LENGTH];
+static char infoGitRev[GIT_SHORT_REVISION_LENGTH + 1];
 static char infoTargetName[] = __TARGET__;
 
-#include "msp/msp_protocol.h" // XXX for FC identification... not available elsewhere
+#include "interface/msp_protocol.h" // XXX for FC identification... not available elsewhere
 
 static long cmsx_InfoInit(void)
 {
-    for (int i = 0 ; i < GIT_SHORT_REVISION_LENGTH ; i++) {
+    int i;
+    for ( i = 0 ; i < GIT_SHORT_REVISION_LENGTH ; i++) {
         if (shortGitRevision[i] >= 'a' && shortGitRevision[i] <= 'f')
             infoGitRev[i] = shortGitRevision[i] - 'a' + 'A';
         else
             infoGitRev[i] = shortGitRevision[i];
     }
 
+    infoGitRev[i] = 0x0; // Terminate string
     return 0;
 }
 
@@ -80,11 +87,12 @@ static OSD_Entry menuInfoEntries[] = {
 };
 
 static CMS_Menu menuInfo = {
+#ifdef CMS_MENU_DEBUG
     .GUARD_text = "MENUINFO",
     .GUARD_type = OME_MENU,
+#endif
     .onEnter = cmsx_InfoInit,
     .onExit = NULL,
-    .onGlobalExit = NULL,
     .entries = menuInfoEntries
 };
 
@@ -94,33 +102,35 @@ static OSD_Entry menuFeaturesEntries[] =
 {
     {"--- FEATURES ---", OME_Label, NULL, NULL, 0},
 
-#if defined(BLACKBOX)
+#if defined(USE_BLACKBOX)
     {"BLACKBOX", OME_Submenu, cmsMenuChange, &cmsx_menuBlackbox, 0},
 #endif
-#if defined(VTX) || defined(USE_RTC6705)
-    {"VTX", OME_Submenu, cmsMenuChange, &cmsx_menuVtx, 0},
-#endif // VTX || USE_RTC6705
-#if defined(VTX_CONTROL)
-#if defined(VTX_SMARTAUDIO)
+#if defined(USE_VTX_CONTROL)
+#if defined(USE_VTX_RTC6705)
+    {"VTX", OME_Submenu, cmsMenuChange, &cmsx_menuVtxRTC6705, 0},
+#endif // VTX_RTC6705
+#if defined(USE_VTX_SMARTAUDIO)
     {"VTX SA", OME_Submenu, cmsMenuChange, &cmsx_menuVtxSmartAudio, 0},
 #endif
-#if defined(VTX_TRAMP)
+#if defined(USE_VTX_TRAMP)
     {"VTX TR", OME_Submenu, cmsMenuChange, &cmsx_menuVtxTramp, 0},
 #endif
 #endif // VTX_CONTROL
-#ifdef LED_STRIP
+#ifdef USE_LED_STRIP
     {"LED STRIP", OME_Submenu, cmsMenuChange, &cmsx_menuLedstrip, 0},
 #endif // LED_STRIP
+    {"POWER", OME_Submenu, cmsMenuChange, &cmsx_menuPower, 0},
     {"BACK", OME_Back, NULL, NULL, 0},
     {NULL, OME_END, NULL, NULL, 0}
 };
 
 static CMS_Menu menuFeatures = {
+#ifdef CMS_MENU_DEBUG
     .GUARD_text = "MENUFEATURES",
     .GUARD_type = OME_MENU,
+#endif
     .onEnter = NULL,
     .onExit = NULL,
-    .onGlobalExit = NULL,
     .entries = menuFeaturesEntries,
 };
 
@@ -132,14 +142,14 @@ static OSD_Entry menuMainEntries[] =
 
     {"PROFILE",     OME_Submenu,  cmsMenuChange, &cmsx_menuImu, 0},
     {"FEATURES",    OME_Submenu,  cmsMenuChange, &menuFeatures, 0},
-#ifdef OSD
-    {"SCR LAYOUT",  OME_Submenu,  cmsMenuChange, &cmsx_menuOsdLayout, 0},
-    {"ALARMS",      OME_Submenu,  cmsMenuChange, &cmsx_menuAlarms, 0},
+#ifdef USE_OSD
+    {"OSD",         OME_Submenu,  cmsMenuChange, &cmsx_menuOsd, 0},
 #endif
     {"FC&FW INFO",  OME_Submenu,  cmsMenuChange, &menuInfo, 0},
     {"MISC",        OME_Submenu,  cmsMenuChange, &cmsx_menuMisc, 0},
-    {"SAVE&REBOOT", OME_OSD_Exit, cmsMenuExit,   (void*)1, 0},
-    {"EXIT",        OME_OSD_Exit, cmsMenuExit,   (void*)0, 0},
+    {"EXIT",        OME_OSD_Exit, cmsMenuExit,   (void *)CMS_EXIT, 0},
+    {"SAVE&EXIT",   OME_OSD_Exit, cmsMenuExit,   (void *)CMS_EXIT_SAVE, 0},
+    {"SAVE&REBOOT", OME_OSD_Exit, cmsMenuExit,   (void *)CMS_EXIT_SAVEREBOOT, 0},
 #ifdef CMS_MENU_DEBUG
     {"ERR SAMPLE",  OME_Submenu,  cmsMenuChange, &menuInfoEntries[0], 0},
 #endif
@@ -148,11 +158,12 @@ static OSD_Entry menuMainEntries[] =
 };
 
 CMS_Menu menuMain = {
+#ifdef CMS_MENU_DEBUG
     .GUARD_text = "MENUMAIN",
     .GUARD_type = OME_MENU,
+#endif
     .onEnter = NULL,
     .onExit = NULL,
-    .onGlobalExit = NULL,
     .entries = menuMainEntries,
 };
 #endif

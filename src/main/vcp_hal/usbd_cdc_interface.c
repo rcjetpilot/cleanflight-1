@@ -46,13 +46,15 @@
   */
 
 /* Includes ------------------------------------------------------------------*/
+#include "drivers/serial_usb_vcp.h"
+#include "drivers/time.h"
+
 #include "stm32f7xx_hal.h"
 #include "usbd_core.h"
 #include "usbd_desc.h"
 #include "usbd_cdc.h"
 #include "usbd_cdc_interface.h"
 #include "stdbool.h"
-#include "drivers/system.h"
 
 /* Private typedef -----------------------------------------------------------*/
 /* Private define ------------------------------------------------------------*/
@@ -82,8 +84,11 @@ uint8_t* rxBuffPtr = NULL;
 
 /* TIM handler declaration */
 TIM_HandleTypeDef  TimHandle;
-/* USB handler declaration */
-extern USBD_HandleTypeDef  USBD_Device;
+
+static void (*ctrlLineStateCb)(void *context, uint16_t ctrlLineState);
+static void *ctrlLineStateCbContext;
+static void (*baudRateCb)(void *context, uint32_t baud);
+static void *baudRateCbContext;
 
 /* Private function prototypes -----------------------------------------------*/
 static int8_t CDC_Itf_Init(void);
@@ -123,7 +128,7 @@ static int8_t CDC_Itf_Init(void)
 
   /*##-4- Start the TIM Base generation in interrupt mode ####################*/
   /* Start Channel1 */
-  if(HAL_TIM_Base_Start_IT(&TimHandle) != HAL_OK)
+  if (HAL_TIM_Base_Start_IT(&TimHandle) != HAL_OK)
   {
     /* Starting Error */
     Error_Handler();
@@ -132,6 +137,9 @@ static int8_t CDC_Itf_Init(void)
   /*##-5- Set Application Buffers ############################################*/
   USBD_CDC_SetTxBuffer(&USBD_Device, UserTxBuffer, 0);
   USBD_CDC_SetRxBuffer(&USBD_Device, UserRxBuffer);
+
+  ctrlLineStateCb = NULL;
+  baudRateCb = NULL;
 
   return (USBD_OK);
 }
@@ -158,7 +166,8 @@ static int8_t CDC_Itf_DeInit(void)
   */
 static int8_t CDC_Itf_Control (uint8_t cmd, uint8_t* pbuf, uint16_t length)
 {
-    UNUSED(length);
+  LINE_CODING* plc = (LINE_CODING*)pbuf;
+
   switch (cmd)
   {
   case CDC_SEND_ENCAPSULATED_COMMAND:
@@ -182,26 +191,36 @@ static int8_t CDC_Itf_Control (uint8_t cmd, uint8_t* pbuf, uint16_t length)
     break;
 
   case CDC_SET_LINE_CODING:
-    LineCoding.bitrate    = (uint32_t)(pbuf[0] | (pbuf[1] << 8) |\
-                            (pbuf[2] << 16) | (pbuf[3] << 24));
-    LineCoding.format     = pbuf[4];
-    LineCoding.paritytype = pbuf[5];
-    LineCoding.datatype   = pbuf[6];
+    if (pbuf && (length == sizeof (*plc))) {
+        LineCoding.bitrate    = plc->bitrate;
+        LineCoding.format     = plc->format;
+        LineCoding.paritytype = plc->paritytype;
+        LineCoding.datatype   = plc->datatype;
+
+        // If a callback is provided, tell the upper driver of changes in baud rate
+        if (baudRateCb) {
+            baudRateCb(baudRateCbContext, LineCoding.bitrate);
+        }
+    }
 
     break;
 
   case CDC_GET_LINE_CODING:
-    pbuf[0] = (uint8_t)(LineCoding.bitrate);
-    pbuf[1] = (uint8_t)(LineCoding.bitrate >> 8);
-    pbuf[2] = (uint8_t)(LineCoding.bitrate >> 16);
-    pbuf[3] = (uint8_t)(LineCoding.bitrate >> 24);
-    pbuf[4] = LineCoding.format;
-    pbuf[5] = LineCoding.paritytype;
-    pbuf[6] = LineCoding.datatype;
+    if (pbuf && (length == sizeof (*plc))) {
+        plc->bitrate = LineCoding.bitrate;
+        plc->format = LineCoding.format;
+        plc->paritytype = LineCoding.paritytype;
+        plc->datatype = LineCoding.datatype;
+    }
     break;
 
   case CDC_SET_CONTROL_LINE_STATE:
-    /* Add your code here */
+    // If a callback is provided, tell the upper driver of changes in DTR/RTS state
+    if (pbuf && (length == sizeof (uint16_t))) {
+         if (ctrlLineStateCb) {
+             ctrlLineStateCb(ctrlLineStateCbContext, *((uint16_t *)pbuf));
+         }
+    }
     break;
 
   case CDC_SEND_BREAK:
@@ -222,14 +241,14 @@ static int8_t CDC_Itf_Control (uint8_t cmd, uint8_t* pbuf, uint16_t length)
   */
 void HAL_TIM_PeriodElapsedCallback(TIM_HandleTypeDef *htim)
 {
-    if(htim->Instance != TIMusb) return;
+    if (htim->Instance != TIMusb) return;
 
     uint32_t buffptr;
     uint32_t buffsize;
 
-    if(UserTxBufPtrOut != UserTxBufPtrIn)
+    if (UserTxBufPtrOut != UserTxBufPtrIn)
     {
-        if(UserTxBufPtrOut > UserTxBufPtrIn) /* Roll-back */
+        if (UserTxBufPtrOut > UserTxBufPtrIn) /* Roll-back */
         {
             buffsize = APP_RX_DATA_SIZE - UserTxBufPtrOut;
         }
@@ -242,7 +261,7 @@ void HAL_TIM_PeriodElapsedCallback(TIM_HandleTypeDef *htim)
 
         USBD_CDC_SetTxBuffer(&USBD_Device, (uint8_t*)&UserTxBuffer[buffptr], buffsize);
 
-        if(USBD_CDC_TransmitPacket(&USBD_Device) == USBD_OK)
+        if (USBD_CDC_TransmitPacket(&USBD_Device) == USBD_OK)
         {
             UserTxBufPtrOut += buffsize;
             if (UserTxBufPtrOut == APP_TX_DATA_SIZE)
@@ -288,7 +307,7 @@ static void TIM_Config(void)
   TimHandle.Init.Prescaler = (SystemCoreClock / 2 / (1000000)) - 1;
   TimHandle.Init.ClockDivision = 0;
   TimHandle.Init.CounterMode = TIM_COUNTERMODE_UP;
-  if(HAL_TIM_Base_Init(&TimHandle) != HAL_OK)
+  if (HAL_TIM_Base_Init(&TimHandle) != HAL_OK)
   {
     /* Initialization Error */
     Error_Handler();
@@ -318,7 +337,7 @@ static void Error_Handler(void)
 uint32_t CDC_Receive_DATA(uint8_t* recvBuf, uint32_t len)
 {
     uint32_t count = 0;
-    if( (rxBuffPtr != NULL))
+    if ( (rxBuffPtr != NULL))
     {
         while ((rxAvailable > 0) && count < len)
         {
@@ -326,7 +345,7 @@ uint32_t CDC_Receive_DATA(uint8_t* recvBuf, uint32_t len)
             rxBuffPtr++;
             rxAvailable--;
             count++;
-            if(rxAvailable < 1)
+            if (rxAvailable < 1)
                 USBD_CDC_ReceivePacket(&USBD_Device);
         }
     }
@@ -360,8 +379,8 @@ uint32_t CDC_Send_FreeBytes(void)
  */
 uint32_t CDC_Send_DATA(const uint8_t *ptrBuffer, uint32_t sendLength)
 {
-    USBD_CDC_HandleTypeDef *hcdc = (USBD_CDC_HandleTypeDef*)USBD_Device.pClassData;
-    while(hcdc->TxState != 0);
+    USBD_CDC_HandleTypeDef *hcdc = (USBD_CDC_HandleTypeDef*)USBD_Device.pCDC_ClassData;
+    while (hcdc->TxState != 0);
 
     for (uint32_t i = 0; i < sendLength; i++)
     {
@@ -410,4 +429,31 @@ uint32_t CDC_BaudRate(void)
 {
     return LineCoding.bitrate;
 }
+
+/*******************************************************************************
+ * Function Name  : CDC_SetBaudRateCb
+ * Description    : Set a callback to call when baud rate changes
+ * Input          : callback function and context.
+ * Output         : None.
+ * Return         : None.
+ *******************************************************************************/
+void CDC_SetBaudRateCb(void (*cb)(void *context, uint32_t baud), void *context)
+{
+    baudRateCbContext = context;
+    baudRateCb = cb;
+}
+
+/*******************************************************************************
+ * Function Name  : CDC_SetCtrlLineStateCb
+ * Description    : Set a callback to call when control line state changes
+ * Input          : callback function and context.
+ * Output         : None.
+ * Return         : None.
+ *******************************************************************************/
+void CDC_SetCtrlLineStateCb(void (*cb)(void *context, uint16_t ctrlLineState), void *context)
+{
+    ctrlLineStateCbContext = context;
+    ctrlLineStateCb = cb;
+}
+
 /************************ (C) COPYRIGHT STMicroelectronics *****END OF FILE****/

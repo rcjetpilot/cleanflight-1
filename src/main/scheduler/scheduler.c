@@ -1,18 +1,21 @@
 /*
- * This file is part of Cleanflight.
+ * This file is part of Cleanflight and Betaflight.
  *
- * Cleanflight is free software: you can redistribute it and/or modify
- * it under the terms of the GNU General Public License as published by
- * the Free Software Foundation, either version 3 of the License, or
- * (at your option) any later version.
+ * Cleanflight and Betaflight are free software. You can redistribute
+ * this software and/or modify this software under the terms of the
+ * GNU General Public License as published by the Free Software
+ * Foundation, either version 3 of the License, or (at your option)
+ * any later version.
  *
- * Cleanflight is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- * GNU General Public License for more details.
+ * Cleanflight and Betaflight are distributed in the hope that they
+ * will be useful, but WITHOUT ANY WARRANTY; without even the implied
+ * warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
+ * See the GNU General Public License for more details.
  *
  * You should have received a copy of the GNU General Public License
- * along with Cleanflight.  If not, see <http://www.gnu.org/licenses/>.
+ * along with this software.
+ *
+ * If not, see <http://www.gnu.org/licenses/>.
  */
 
 #define SRC_MAIN_SCHEDULER_C_
@@ -23,15 +26,18 @@
 
 #include "platform.h"
 
+#include "build/build_config.h"
 #include "build/debug.h"
 
 #include "scheduler/scheduler.h"
+
+#include "config/config_unittest.h"
 
 #include "common/maths.h"
 #include "common/time.h"
 #include "common/utils.h"
 
-#include "drivers/system.h"
+#include "drivers/time.h"
 
 // DEBUG_SCHEDULER, timings for:
 // 0 - gyroUpdate()
@@ -39,20 +45,21 @@
 // 2 - time spent in scheduler
 // 3 - time spent executing check function
 
-static cfTask_t *currentTask = NULL;
+static FAST_RAM_ZERO_INIT cfTask_t *currentTask = NULL;
 
-static uint32_t totalWaitingTasks;
-static uint32_t totalWaitingTasksSamples;
+static FAST_RAM_ZERO_INIT uint32_t totalWaitingTasks;
+static FAST_RAM_ZERO_INIT uint32_t totalWaitingTasksSamples;
 
-static bool calculateTaskStatistics;
-uint16_t averageSystemLoadPercent = 0;
+static FAST_RAM_ZERO_INIT bool calculateTaskStatistics;
+FAST_RAM_ZERO_INIT uint16_t averageSystemLoadPercent = 0;
 
 
-static int taskQueuePos = 0;
-static int taskQueueSize = 0;
+static FAST_RAM_ZERO_INIT int taskQueuePos = 0;
+STATIC_UNIT_TESTED FAST_RAM_ZERO_INIT int taskQueueSize = 0;
+
 // No need for a linked list for the queue, since items are only inserted at startup
 
-static cfTask_t* taskQueueArray[TASK_COUNT + 1]; // extra item for NULL pointer at end of queue
+STATIC_UNIT_TESTED FAST_RAM_ZERO_INIT cfTask_t* taskQueueArray[TASK_COUNT + 1]; // extra item for NULL pointer at end of queue
 
 void queueClear(void)
 {
@@ -102,7 +109,7 @@ bool queueRemove(cfTask_t *task)
 /*
  * Returns first item queue or NULL if queue empty
  */
-cfTask_t *queueFirst(void)
+FAST_CODE cfTask_t *queueFirst(void)
 {
     taskQueuePos = 0;
     return taskQueueArray[0]; // guaranteed to be NULL if queue is empty
@@ -111,12 +118,12 @@ cfTask_t *queueFirst(void)
 /*
  * Returns next item in queue or NULL if at end of queue
  */
-cfTask_t *queueNext(void)
+FAST_CODE cfTask_t *queueNext(void)
 {
     return taskQueueArray[++taskQueuePos]; // guaranteed to be NULL at end of queue
 }
 
-void taskSystem(timeUs_t currentTimeUs)
+void taskSystemLoad(timeUs_t currentTimeUs)
 {
     UNUSED(currentTimeUs);
 
@@ -126,6 +133,9 @@ void taskSystem(timeUs_t currentTimeUs)
         totalWaitingTasksSamples = 0;
         totalWaitingTasks = 0;
     }
+#if defined(SIMULATOR_BUILD)
+    averageSystemLoadPercent = 0;
+#endif
 }
 
 #ifndef SKIP_TASK_STATISTICS
@@ -159,10 +169,10 @@ void rescheduleTask(cfTaskId_e taskId, uint32_t newPeriodMicros)
 {
     if (taskId == TASK_SELF) {
         cfTask_t *task = currentTask;
-        task->desiredPeriod = MAX(SCHEDULER_DELAY_LIMIT, newPeriodMicros);  // Limit delay to 100us (10 kHz) to prevent scheduler clogging
+        task->desiredPeriod = MAX(SCHEDULER_DELAY_LIMIT, (timeDelta_t)newPeriodMicros);  // Limit delay to 100us (10 kHz) to prevent scheduler clogging
     } else if (taskId < TASK_COUNT) {
         cfTask_t *task = &cfTasks[taskId];
-        task->desiredPeriod = MAX(SCHEDULER_DELAY_LIMIT, newPeriodMicros);  // Limit delay to 100us (10 kHz) to prevent scheduler clogging
+        task->desiredPeriod = MAX(SCHEDULER_DELAY_LIMIT, (timeDelta_t)newPeriodMicros);  // Limit delay to 100us (10 kHz) to prevent scheduler clogging
     }
 }
 
@@ -178,7 +188,7 @@ void setTaskEnabled(cfTaskId_e taskId, bool enabled)
     }
 }
 
-uint32_t getTaskDeltaTime(cfTaskId_e taskId)
+timeDelta_t getTaskDeltaTime(cfTaskId_e taskId)
 {
     if (taskId == TASK_SELF) {
         return currentTask->taskLatestDeltaTime;
@@ -206,7 +216,20 @@ void schedulerResetTaskStatistics(cfTaskId_e taskId)
     } else if (taskId < TASK_COUNT) {
         cfTasks[taskId].movingSumExecutionTime = 0;
         cfTasks[taskId].totalExecutionTime = 0;
-        cfTasks[taskId].totalExecutionTime = 0;
+        cfTasks[taskId].maxExecutionTime = 0;
+    }
+#endif
+}
+
+void schedulerResetTaskMaxExecutionTime(cfTaskId_e taskId)
+{
+#ifdef SKIP_TASK_STATISTICS
+    UNUSED(taskId);
+#else
+    if (taskId == TASK_SELF) {
+        currentTask->maxExecutionTime = 0;
+    } else if (taskId < TASK_COUNT) {
+        cfTasks[taskId].maxExecutionTime = 0;
     }
 #endif
 }
@@ -218,23 +241,20 @@ void schedulerInit(void)
     queueAdd(&cfTasks[TASK_SYSTEM]);
 }
 
-void scheduler(void)
+FAST_CODE void scheduler(void)
 {
     // Cache currentTime
     const timeUs_t currentTimeUs = micros();
 
     // Check for realtime tasks
-    timeUs_t timeToNextRealtimeTask = TIMEUS_MAX;
+    bool outsideRealtimeGuardInterval = true;
     for (const cfTask_t *task = queueFirst(); task != NULL && task->staticPriority >= TASK_PRIORITY_REALTIME; task = queueNext()) {
         const timeUs_t nextExecuteAt = task->lastExecutedAt + task->desiredPeriod;
-        if ((int32_t)(currentTimeUs - nextExecuteAt) >= 0) {
-            timeToNextRealtimeTask = 0;
-        } else {
-            const timeUs_t newTimeInterval = nextExecuteAt - currentTimeUs;
-            timeToNextRealtimeTask = MIN(timeToNextRealtimeTask, newTimeInterval);
+        if ((timeDelta_t)(currentTimeUs - nextExecuteAt) >= 0) {
+            outsideRealtimeGuardInterval = false;
+            break;
         }
     }
-    const bool outsideRealtimeGuardInterval = (timeToNextRealtimeTask > 0);
 
     // The task to be invoked
     cfTask_t *selectedTask = NULL;
@@ -329,4 +349,6 @@ void scheduler(void)
         DEBUG_SET(DEBUG_SCHEDULER, 2, micros() - currentTimeUs);
 #endif
     }
+
+    GET_SCHEDULER_LOCALS();
 }

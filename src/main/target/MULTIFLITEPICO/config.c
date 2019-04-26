@@ -1,89 +1,104 @@
 /*
- * This file is part of Cleanflight.
+ * This file is part of Cleanflight and Betaflight.
  *
- * Cleanflight is free software: you can redistribute it and/or modify
- * it under the terms of the GNU General Public License as published by
- * the Free Software Foundation, either version 3 of the License, or
- * (at your option) any later version.
+ * Cleanflight and Betaflight are free software. You can redistribute
+ * this software and/or modify this software under the terms of the
+ * GNU General Public License as published by the Free Software
+ * Foundation, either version 3 of the License, or (at your option)
+ * any later version.
  *
- * Cleanflight is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- * GNU General Public License for more details.
+ * Cleanflight and Betaflight are distributed in the hope that they
+ * will be useful, but WITHOUT ANY WARRANTY; without even the implied
+ * warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
+ * See the GNU General Public License for more details.
  *
  * You should have received a copy of the GNU General Public License
- * along with Cleanflight.  If not, see <http://www.gnu.org/licenses/>.
+ * along with this software.
+ *
+ * If not, see <http://www.gnu.org/licenses/>.
  */
 
 #include <stdbool.h>
 #include <stdint.h>
 
-#include <platform.h>
+#include "platform.h"
 
-#ifdef TARGET_CONFIG
+#ifdef USE_TARGET_CONFIG
+
 #include "common/axis.h"
 #include "common/maths.h"
 
-#include "drivers/sensor.h"
-#include "drivers/compass.h"
-
+#include "fc/config.h"
+#include "fc/controlrate_profile.h"
+#include "fc/rc_modes.h"
 #include "fc/rc_controls.h"
 
 #include "flight/failsafe.h"
 #include "flight/mixer.h"
 #include "flight/pid.h"
 
+#include "pg/rx.h"
+
 #include "rx/rx.h"
 
-#include "sensors/sensors.h"
+#include "sensors/battery.h"
 #include "sensors/compass.h"
+#include "sensors/gyro.h"
 
-#include "config/config_profile.h"
-#include "config/config_master.h"
+#define VBAT_SCALE 100
 
 // alternative defaults settings for MULTIFLITEPICO targets
-void targetConfiguration(master_t *config)
+void targetConfiguration(void)
 {
-    config->compassConfig.mag_hardware = MAG_NONE;            // disabled by default
+    compassConfigMutable()->mag_hardware = MAG_NONE;            // disabled by default
 
-    config->batteryConfig.vbatscale = 100;
-    config->batteryConfig.vbatresdivval = 15;
-    config->batteryConfig.vbatresdivmultiplier = 4;
-    config->batteryConfig.vbatmaxcellvoltage = 44;
-    config->batteryConfig.vbatmincellvoltage = 32;
-    config->batteryConfig.vbatwarningcellvoltage = 33;
+    voltageSensorADCConfigMutable(VOLTAGE_SENSOR_ADC_VBAT)->vbatscale = VBAT_SCALE;
+    voltageSensorADCConfigMutable(VOLTAGE_SENSOR_ADC_VBAT)->vbatresdivval = 15;
+    voltageSensorADCConfigMutable(VOLTAGE_SENSOR_ADC_VBAT)->vbatresdivmultiplier = 4;
+    batteryConfigMutable()->vbatmaxcellvoltage = 44;
+    batteryConfigMutable()->vbatmincellvoltage = 32;
+    batteryConfigMutable()->vbatwarningcellvoltage = 33;
 
-    config->rxConfig.spektrum_sat_bind = 5;
-    config->rxConfig.spektrum_sat_bind_autoreset = 1;
+    rxConfigMutable()->spektrum_sat_bind = 5;
+    rxConfigMutable()->spektrum_sat_bind_autoreset = 1;
 
-    config->rcControlsConfig.yaw_deadband = 2;
-    config->rcControlsConfig.deadband = 2;
+    rcControlsConfigMutable()->yaw_deadband = 2;
+    rcControlsConfigMutable()->deadband = 2;
 
-    config->modeActivationProfile.modeActivationConditions[0].modeId          = BOXANGLE;
-    config->modeActivationProfile.modeActivationConditions[0].auxChannelIndex = AUX1 - NON_AUX_CHANNEL_COUNT;
-    config->modeActivationProfile.modeActivationConditions[0].range.startStep = CHANNEL_VALUE_TO_STEP(900);
-    config->modeActivationProfile.modeActivationConditions[0].range.endStep   = CHANNEL_VALUE_TO_STEP(1400);
-    config->modeActivationProfile.modeActivationConditions[1].modeId          = BOXHORIZON;
-    config->modeActivationProfile.modeActivationConditions[1].auxChannelIndex = AUX1 - NON_AUX_CHANNEL_COUNT;
-    config->modeActivationProfile.modeActivationConditions[1].range.startStep = CHANNEL_VALUE_TO_STEP(1425);
-    config->modeActivationProfile.modeActivationConditions[1].range.endStep   = CHANNEL_VALUE_TO_STEP(1575);
+    modeActivationConditionsMutable(0)->modeId          = BOXANGLE;
+    modeActivationConditionsMutable(0)->auxChannelIndex = AUX1 - NON_AUX_CHANNEL_COUNT;
+    modeActivationConditionsMutable(0)->range.startStep = CHANNEL_VALUE_TO_STEP(900);
+    modeActivationConditionsMutable(0)->range.endStep   = CHANNEL_VALUE_TO_STEP(1400);
+    modeActivationConditionsMutable(1)->modeId          = BOXHORIZON;
+    modeActivationConditionsMutable(1)->auxChannelIndex = AUX1 - NON_AUX_CHANNEL_COUNT;
+    modeActivationConditionsMutable(1)->range.startStep = CHANNEL_VALUE_TO_STEP(1425);
+    modeActivationConditionsMutable(1)->range.endStep   = CHANNEL_VALUE_TO_STEP(1575);
 
-    config->failsafeConfig.failsafe_delay = 2;
-    config->failsafeConfig.failsafe_off_delay = 0;
+    failsafeConfigMutable()->failsafe_delay = 2;
+    failsafeConfigMutable()->failsafe_off_delay = 0;
 
-    config->motorConfig.dev.motorPwmRate = 17000;
+    motorConfigMutable()->dev.motorPwmRate = 17000;
 
-    config->gyroConfig.gyro_sync_denom = 4;
-    config->pidConfig.pid_process_denom = 1;
+    gyroConfigMutable()->gyro_sync_denom = 4;
+    pidConfigMutable()->pid_process_denom = 1;
 
-    config->profile[0].pidProfile.P8[ROLL] = 70;
-    config->profile[0].pidProfile.I8[ROLL] = 62;
-    config->profile[0].pidProfile.D8[ROLL] = 19;
-    config->profile[0].pidProfile.P8[PITCH] = 70;
-    config->profile[0].pidProfile.I8[PITCH] = 62;
-    config->profile[0].pidProfile.D8[PITCH] = 19;
+    for (uint8_t pidProfileIndex = 0; pidProfileIndex < MAX_PROFILE_COUNT; pidProfileIndex++) {
+        pidProfile_t *pidProfile = pidProfilesMutable(pidProfileIndex);
 
-    config->controlRateProfile[0].rcRate8 = 70;
-    config->profile[0].pidProfile.I8[PIDLEVEL] = 40;
+        pidProfile->pid[PID_ROLL].P = 70;
+        pidProfile->pid[PID_ROLL].I = 62;
+        pidProfile->pid[PID_ROLL].D = 19;
+        pidProfile->pid[PID_PITCH].P = 70;
+        pidProfile->pid[PID_PITCH].I = 62;
+        pidProfile->pid[PID_PITCH].D = 19;
+        pidProfile->pid[PID_LEVEL].I = 40;
+    }
+
+    for (uint8_t rateProfileIndex = 0; rateProfileIndex < CONTROL_RATE_PROFILE_COUNT; rateProfileIndex++) {
+        controlRateConfig_t *controlRateConfig = controlRateProfilesMutable(rateProfileIndex);
+
+        controlRateConfig->rcRates[FD_ROLL] = 70;
+        controlRateConfig->rcRates[FD_PITCH] = 70;
+    }
 }
 #endif

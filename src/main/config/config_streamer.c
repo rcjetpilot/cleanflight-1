@@ -1,18 +1,21 @@
 /*
- * This file is part of Cleanflight.
+ * This file is part of Cleanflight and Betaflight.
  *
- * Cleanflight is free software: you can redistribute it and/or modify
- * it under the terms of the GNU General Public License as published by
- * the Free Software Foundation, either version 3 of the License, or
- * (at your option) any later version.
+ * Cleanflight and Betaflight are free software. You can redistribute
+ * this software and/or modify this software under the terms of the
+ * GNU General Public License as published by the Free Software
+ * Foundation, either version 3 of the License, or (at your option)
+ * any later version.
  *
- * Cleanflight is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- * GNU General Public License for more details.
+ * Cleanflight and Betaflight are distributed in the hope that they
+ * will be useful, but WITHOUT ANY WARRANTY; without even the implied
+ * warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
+ * See the GNU General Public License for more details.
  *
  * You should have received a copy of the GNU General Public License
- * along with Cleanflight.  If not, see <http://www.gnu.org/licenses/>.
+ * along with this software.
+ *
+ * If not, see <http://www.gnu.org/licenses/>.
  */
 
 #include <string.h>
@@ -23,15 +26,49 @@
 
 #include "config/config_streamer.h"
 
+#ifndef EEPROM_IN_RAM
 extern uint8_t __config_start;   // configured via linker script when building binaries.
 extern uint8_t __config_end;
+#endif
 
-uint32_t FlashPageSize;
+#if !defined(FLASH_PAGE_SIZE)
+// F1
+# if defined(STM32F10X_MD)
+#  define FLASH_PAGE_SIZE                 (0x400)
+# elif defined(STM32F10X_HD)
+#  define FLASH_PAGE_SIZE                 (0x800)
+// F3
+# elif defined(STM32F303xC)
+#  define FLASH_PAGE_SIZE                 (0x800)
+// F4
+# elif defined(STM32F40_41xxx)
+#  define FLASH_PAGE_SIZE                 ((uint32_t)0x4000) // 16K sectors
+# elif defined (STM32F411xE)
+#  define FLASH_PAGE_SIZE                 ((uint32_t)0x4000)
+# elif defined(STM32F427_437xx)
+#  define FLASH_PAGE_SIZE                 ((uint32_t)0x4000)
+# elif defined (STM32F446xx)
+#  define FLASH_PAGE_SIZE                 ((uint32_t)0x4000)
+// F7
+#elif defined(STM32F722xx)
+#  define FLASH_PAGE_SIZE                 ((uint32_t)0x4000) // 16K sectors
+# elif defined(STM32F745xx)
+#  define FLASH_PAGE_SIZE                 ((uint32_t)0x8000) // 32K sectors
+# elif defined(STM32F746xx)
+#  define FLASH_PAGE_SIZE                 ((uint32_t)0x8000)
+# elif defined(UNIT_TEST)
+#  define FLASH_PAGE_SIZE                 (0x400)
+// SIMULATOR
+# elif defined(SIMULATOR_BUILD)
+#  define FLASH_PAGE_SIZE                 (0x400)
+# else
+#  error "Flash page size not defined for target."
+# endif
+#endif
 
 void config_streamer_init(config_streamer_t *c)
 {
     memset(c, 0, sizeof(*c));
-    FlashPageSize = (uint32_t)&__config_end - (uint32_t)&__config_start;
 }
 
 void config_streamer_start(config_streamer_t *c, uintptr_t base, int size)
@@ -56,7 +93,7 @@ void config_streamer_start(config_streamer_t *c, uintptr_t base, int size)
     FLASH_ClearFlag(FLASH_FLAG_EOP | FLASH_FLAG_OPERR | FLASH_FLAG_WRPERR | FLASH_FLAG_PGAERR | FLASH_FLAG_PGPERR | FLASH_FLAG_PGSERR);
 #elif defined(STM32F7)
     // NOP
-#elif defined(UNIT_TEST)
+#elif defined(UNIT_TEST) || defined(SIMULATOR_BUILD)
     // NOP
 #else
 # error "Unsupported CPU"
@@ -194,7 +231,7 @@ static int write_word(config_streamer_t *c, uint32_t value)
         return c->err;
     }
 #if defined(STM32F7)
-    if (c->address % FlashPageSize == 0) {
+    if (c->address % FLASH_PAGE_SIZE == 0) {
         FLASH_EraseInitTypeDef EraseInitStruct = {
             .TypeErase     = FLASH_TYPEERASE_SECTORS,
             .VoltageRange  = FLASH_VOLTAGE_RANGE_3, // 2.7-3.6V
@@ -203,7 +240,7 @@ static int write_word(config_streamer_t *c, uint32_t value)
         EraseInitStruct.Sector = getFLASHSectorForEEPROM();
         uint32_t SECTORError;
         const HAL_StatusTypeDef status = HAL_FLASHEx_Erase(&EraseInitStruct, &SECTORError);
-        if (status != HAL_OK){
+        if (status != HAL_OK) {
             return -1;
         }
     }
@@ -212,7 +249,7 @@ static int write_word(config_streamer_t *c, uint32_t value)
         return -2;
     }
 #else
-    if (c->address % FlashPageSize == 0) {
+    if (c->address % FLASH_PAGE_SIZE == 0) {
 #if defined(STM32F4)
         const FLASH_Status status = FLASH_EraseSector(getFLASHSectorForEEPROM(), VoltageRange_3); //0x08080000 to 0x080A0000
 #else

@@ -1,18 +1,21 @@
 /*
- * This file is part of Cleanflight.
+ * This file is part of Cleanflight and Betaflight.
  *
- * Cleanflight is free software: you can redistribute it and/or modify
- * it under the terms of the GNU General Public License as published by
- * the Free Software Foundation, either version 3 of the License, or
- * (at your option) any later version.
+ * Cleanflight and Betaflight are free software. You can redistribute
+ * this software and/or modify this software under the terms of the
+ * GNU General Public License as published by the Free Software
+ * Foundation, either version 3 of the License, or (at your option)
+ * any later version.
  *
- * Cleanflight is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- * GNU General Public License for more details.
+ * Cleanflight and Betaflight are distributed in the hope that they
+ * will be useful, but WITHOUT ANY WARRANTY; without even the implied
+ * warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
+ * See the GNU General Public License for more details.
  *
  * You should have received a copy of the GNU General Public License
- * along with Cleanflight.  If not, see <http://www.gnu.org/licenses/>.
+ * along with this software.
+ *
+ * If not, see <http://www.gnu.org/licenses/>.
  */
 
 #pragma once
@@ -23,7 +26,6 @@
 cfTask_t *unittest_scheduler_selectedTask;
 uint8_t unittest_scheduler_selectedTaskDynamicPriority;
 uint16_t unittest_scheduler_waitingTasks;
-uint32_t unittest_scheduler_timeToNextRealtimeTask;
 bool unittest_outsideRealtimeGuardInterval;
 
 #define GET_SCHEDULER_LOCALS() \
@@ -31,7 +33,6 @@ bool unittest_outsideRealtimeGuardInterval;
     unittest_scheduler_selectedTask = selectedTask; \
     unittest_scheduler_selectedTaskDynamicPriority = selectedTaskDynamicPriority; \
     unittest_scheduler_waitingTasks = waitingTasks; \
-    unittest_scheduler_timeToNextRealtimeTask = timeToNextRealtimeTask; \
     unittest_outsideRealtimeGuardInterval = outsideRealtimeGuardInterval; \
     }
 
@@ -97,4 +98,3 @@ int32_t unittest_pidMultiWiiRewrite_DTerm[3];
 
 #endif // UNIT_TEST
 #endif // SRC_MAIN_FLIGHT_PID_C_
-

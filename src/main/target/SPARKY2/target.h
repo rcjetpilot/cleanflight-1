@@ -1,18 +1,21 @@
 /*
- * This file is part of Cleanflight.
+ * This file is part of Cleanflight and Betaflight.
  *
- * Cleanflight is free software: you can redistribute it and/or modify
- * it under the terms of the GNU General Public License as published by
- * the Free Software Foundation, either version 3 of the License, or
- * (at your option) any later version.
+ * Cleanflight and Betaflight are free software. You can redistribute
+ * this software and/or modify this software under the terms of the
+ * GNU General Public License as published by the Free Software
+ * Foundation, either version 3 of the License, or (at your option)
+ * any later version.
  *
- * Cleanflight is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- * GNU General Public License for more details.
+ * Cleanflight and Betaflight are distributed in the hope that they
+ * will be useful, but WITHOUT ANY WARRANTY; without even the implied
+ * warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
+ * See the GNU General Public License for more details.
  *
  * You should have received a copy of the GNU General Public License
- * along with Cleanflight.  If not, see <http://www.gnu.org/licenses/>.
+ * along with this software.
+ *
+ * If not, see <http://www.gnu.org/licenses/>.
  */
 
 #pragma once
@@ -23,16 +26,15 @@
     #define USBD_SERIALNUMBER_STRING "0x8020000"
 #endif
 
-#define LED0                    PB5
-#define LED1                    PB4
-#define LED2                    PB6
+#define LED0_PIN                PB5
+#define LED1_PIN                PB4
+#define LED2_PIN                PB6
 
-#define BEEPER                  PC9
+#define USE_BEEPER
+#define BEEPER_PIN              PC9
 #define BEEPER_INVERTED
 
-#define INVERTER_PIN_USART6     PC6
-
-#define USE_ESC_SENSOR
+#define INVERTER_PIN_UART6      PC6
 
 // MPU9250 interrupt
 #define USE_EXTI
@@ -44,27 +46,27 @@
 #define MPU9250_CS_PIN          PC4
 #define MPU9250_SPI_INSTANCE    SPI1
 
-#define ACC
+#define USE_ACC
 #define USE_ACC_SPI_MPU9250
 #define ACC_MPU9250_ALIGN       CW270_DEG
 
-#define GYRO
+#define USE_GYRO
 #define USE_GYRO_SPI_MPU9250
 #define GYRO_MPU9250_ALIGN      CW270_DEG
 
-#define MAG
+#define USE_MAG
 //#define USE_MAG_HMC5883
 #define USE_MAG_AK8963
 
 //#define MAG_HMC5883_ALIGN       CW180_DEG
 #define MAG_AK8963_ALIGN        CW270_DEG
 
-#define BARO
+#define USE_BARO
 #define USE_BARO_MS5611
 //#define USE_BARO_BMP280
 
-#define M25P16_CS_PIN           PB3
-#define M25P16_SPI_INSTANCE     SPI3
+#define FLASH_CS_PIN            PB3
+#define FLASH_SPI_INSTANCE      SPI3
 
 //#define RFM22B_CS_PIN           PA15
 //#define RFM22B_SPI_INSTANCE     SPI3
@@ -74,7 +76,8 @@
 #define USE_FLASH_TOOLS
 
 #define USE_VCP
-#define VBUS_SENSING_PIN        PA8
+#define USE_USB_DETECT
+#define USB_DETECT_PIN          PA8
 
 #define USE_UART1
 #define UART1_RX_PIN            PA10
@@ -89,13 +92,10 @@
 #define UART6_RX_PIN            PC7
 #define UART6_TX_PIN            PC6 //inverter
 
-#define USE_SOFTSERIAL1
-#define USE_SOFTSERIAL2
-
-#define SERIAL_PORT_COUNT 6
+#define SERIAL_PORT_COUNT 4
 
 #define USE_ESCSERIAL
-#define ESCSERIAL_TIMER_TX_HARDWARE 0 // PWM 1
+#define ESCSERIAL_TIMER_TX_PIN  PC7  // (HARDARE=0,PPM)
 
 #define USE_SPI
 
@@ -116,15 +116,14 @@
 #define I2C_DEVICE              (I2CDEV_1)
 
 #define USE_ADC
-#define VBAT_ADC_PIN            PC3
+#define VBAT_ADC_PIN            PC1
 #define CURRENT_METER_ADC_PIN   PC2
 
-#undef LED_STRIP
+#undef USE_LED_STRIP
 
-#define DEFAULT_FEATURES        FEATURE_BLACKBOX
 #define DEFAULT_RX_FEATURE      FEATURE_RX_SERIAL
 #define SERIALRX_PROVIDER       SERIALRX_SBUS
-#define SERIALRX_UART           SERIAL_PORT_USART3
+#define SERIALRX_UART           SERIAL_PORT_USART6
 
 #define USE_SERIAL_4WAY_BLHELI_INTERFACE
 

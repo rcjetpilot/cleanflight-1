@@ -1,18 +1,21 @@
 /*
- * This file is part of Cleanflight.
+ * This file is part of Cleanflight and Betaflight.
  *
- * Cleanflight is free software: you can redistribute it and/or modify
- * it under the terms of the GNU General Public License as published by
- * the Free Software Foundation, either version 3 of the License, or
- * (at your option) any later version.
+ * Cleanflight and Betaflight are free software. You can redistribute
+ * this software and/or modify this software under the terms of the
+ * GNU General Public License as published by the Free Software
+ * Foundation, either version 3 of the License, or (at your option)
+ * any later version.
  *
- * Cleanflight is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- * GNU General Public License for more details.
+ * Cleanflight and Betaflight are distributed in the hope that they
+ * will be useful, but WITHOUT ANY WARRANTY; without even the implied
+ * warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
+ * See the GNU General Public License for more details.
  *
  * You should have received a copy of the GNU General Public License
- * along with Cleanflight.  If not, see <http://www.gnu.org/licenses/>.
+ * along with this software.
+ *
+ * If not, see <http://www.gnu.org/licenses/>.
  */
 
 #pragma once
@@ -21,13 +24,11 @@
 
 #define USBD_PRODUCT_STRING "FuryF7"
 
-#define USE_DSHOT
-#define USE_ESC_SENSOR
+#define LED0_PIN                PB5
+#define LED1_PIN                PB4
 
-#define LED0                    PB5
-#define LED1                    PB4
-
-#define BEEPER                  PD10
+#define USE_BEEPER
+#define BEEPER_PIN              PD10
 #define BEEPER_INVERTED
 
 #define USE_EXTI
@@ -37,15 +38,15 @@
 #define ICM20689_CS_PIN          PA4
 #define ICM20689_SPI_INSTANCE    SPI1
 
-#define GYRO
+#define USE_GYRO
 #define USE_GYRO_SPI_ICM20689
 #define GYRO_ICM20689_ALIGN      CW180_DEG
 
-#define ACC
+#define USE_ACC
 #define USE_ACC_SPI_ICM20689
 #define ACC_ICM20689_ALIGN       CW180_DEG
 
-//#define BARO
+//#define USE_BARO
 //#define USE_BARO_MS5611
 //#define MS5611_I2C_INSTANCE     I2CDEV_1
 
@@ -77,12 +78,7 @@
 
 #define USE_SDCARD
 #define SDCARD_DETECT_INVERTED
-
 #define SDCARD_DETECT_PIN                   PD2
-#define SDCARD_DETECT_EXTI_LINE             EXTI_Line2
-#define SDCARD_DETECT_EXTI_PIN_SOURCE       EXTI_PinSource2
-#define SDCARD_DETECT_EXTI_PORT_SOURCE      EXTI_PortSourceGPIOD
-#define SDCARD_DETECT_EXTI_IRQn             EXTI2_IRQn
 
 #define SDCARD_SPI_INSTANCE                 SPI4
 #define SDCARD_SPI_CS_PIN                   SPI4_NSS_PIN
@@ -91,18 +87,17 @@
 // Divide to under 25MHz for normal operation:
 #define SDCARD_SPI_FULL_SPEED_CLOCK_DIVIDER 8 // 13.5MHz
 
-#define SDCARD_DMA_CHANNEL_TX               DMA2_Stream1
-#define SDCARD_DMA_CHANNEL_TX_COMPLETE_FLAG DMA_FLAG_TCIF1_5
-#define SDCARD_DMA_CLK                      RCC_AHB1Periph_DMA2
-#define SDCARD_DMA_CHANNEL                  DMA_CHANNEL_4
+#define SDCARD_DMA_STREAM_TX_FULL           DMA2_Stream1
+#define SDCARD_DMA_CHANNEL                  4
 
 #define USE_FLASHFS
 #define USE_FLASH_M25P16
-#define M25P16_CS_PIN           PA15
-#define M25P16_SPI_INSTANCE     SPI3
+#define FLASH_CS_PIN            PA15
+#define FLASH_SPI_INSTANCE      SPI3
 
 #define USE_VCP
-#define VBUS_SENSING_PIN        PC5
+#define USE_USB_DETECT
+#define USB_DETECT_PIN          PC5
 
 #define USE_UART1
 #define UART1_RX_PIN            PA10
@@ -121,6 +116,9 @@
 
 #define SERIAL_PORT_COUNT       6 //VCP, USART1, USART3, USART6, SOFTSERIAL x 2
 
+#define USE_ESCSERIAL
+#define ESCSERIAL_TIMER_TX_PIN  PC9 // (Hardware=0, PPM)
+
 #define USE_I2C
 #define USE_I2C_DEVICE_1
 #define I2C_DEVICE              (I2CDEV_1)
@@ -129,22 +127,23 @@
 #define I2C1_SDA                PB7
 
 #define USE_ADC
-#define BOARD_HAS_VOLTAGE_DIVIDER
+#define DEFAULT_VOLTAGE_METER_SOURCE VOLTAGE_METER_ADC
 #define VBAT_ADC_PIN            PC1
 #define RSSI_ADC_PIN            PC2
 #define CURRENT_METER_ADC_PIN   PC3
 
 #define ENABLE_BLACKBOX_LOGGING_ON_SDCARD_BY_DEFAULT
 
-#undef LED_STRIP
+#undef USE_LED_STRIP
 
-#define DEFAULT_FEATURES        (FEATURE_BLACKBOX)
 #define DEFAULT_RX_FEATURE      FEATURE_RX_SERIAL
 #define SERIALRX_PROVIDER       SERIALRX_SBUS
 
-#define SPEKTRUM_BIND
-// USART3 Rx, PB11
-#define BIND_PIN                PB11
+// XXX To target maintainer:
+// USE_SPEKTRUM_BIND is enabled for this target, and it will use
+// RX (or TX if half-duplex) pin of the UART the receiver is connected.
+// If PB11 is critical for this target, please resurrect this line.
+//#define SPEKTRUM_BIND_PIN       PB11
 
 #define USE_SERIAL_4WAY_BLHELI_INTERFACE
 

@@ -1,38 +1,34 @@
 /*
- * This file is part of Cleanflight.
+ * This file is part of Cleanflight and Betaflight.
  *
- * Cleanflight is free software: you can redistribute it and/or modify
- * it under the terms of the GNU General Public License as published by
- * the Free Software Foundation, either version 3 of the License, or
- * (at your option) any later version.
+ * Cleanflight and Betaflight are free software. You can redistribute
+ * this software and/or modify this software under the terms of the
+ * GNU General Public License as published by the Free Software
+ * Foundation, either version 3 of the License, or (at your option)
+ * any later version.
  *
- * Cleanflight is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- * GNU General Public License for more details.
+ * Cleanflight and Betaflight are distributed in the hope that they
+ * will be useful, but WITHOUT ANY WARRANTY; without even the implied
+ * warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
+ * See the GNU General Public License for more details.
  *
  * You should have received a copy of the GNU General Public License
- * along with Cleanflight.  If not, see <http://www.gnu.org/licenses/>.
+ * along with this software.
+ *
+ * If not, see <http://www.gnu.org/licenses/>.
  */
 
 #pragma once
 
-#define TBS_CORE_PNP_PRO                    0x80
-#define RESERVED                            0x8A
-#define PNP_PRO_DIDITAL_CURRENT_SENSOR      0xC0
-#define PNP_PRO_GPS                         0xC2
-#define TSB_BLACKBOX                        0xC4
-#define CLEANFLIGHT_FC                      0xC8
-#define CROSSFIRE_UHF_RECEIVER              0xEC
+#define BST_BUFFER_SIZE                              128
 
-#define GPS_POSITION_FRAME_ID               0x02
-#define GPS_TIME_FRAME_ID                   0x03
-#define FC_ATTITUDE_FRAME_ID                0x1E
-#define RC_CHANNEL_FRAME_ID                 0x15
-#define CROSSFIRE_RSSI_FRAME_ID             0x14
-#define CLEANFLIGHT_MODE_FRAME_ID           0x20
-
-#define DATA_BUFFER_SIZE                    128
+#define I2C_ADDR_TBS_CORE_PNP_PRO                    0x80
+#define I2C_ADDR_RESERVED                            0x8A
+#define I2C_ADDR_PNP_PRO_DIDITAL_CURRENT_SENSOR      0xC0
+#define I2C_ADDR_PNP_PRO_GPS                         0xC2
+#define I2C_ADDR_TSB_BLACKBOX                        0xC4
+#define I2C_ADDR_CROSSFIRE_UHF_RECEIVER              0xEC
+#define I2C_ADDR_CLEANFLIGHT_FC                      0xC8
 
 typedef enum BSTDevice {
     BSTDEV_1,
@@ -51,4 +47,3 @@ bool bstSlaveWrite(uint8_t* data);
 void bstMasterWriteLoop(void);
 
 void crc8Cal(uint8_t data_in);
-

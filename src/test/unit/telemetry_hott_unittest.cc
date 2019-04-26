@@ -29,8 +29,8 @@ extern "C" {
     #include "common/axis.h"
     #include "common/gps_conversion.h"
 
-    #include "config/parameter_group.h"
-    #include "config/parameter_group_ids.h"
+    #include "pg/pg.h"
+    #include "pg/pg_ids.h"
 
     #include "drivers/system.h"
     #include "drivers/serial.h"
@@ -51,6 +51,11 @@ extern "C" {
     #include "telemetry/hott.h"
 
     PG_REGISTER(telemetryConfig_t, telemetryConfig, PG_TELEMETRY_CONFIG, 0);
+
+    uint16_t testBatteryVoltage = 0;
+    int32_t testAmperage = 0;
+    int32_t testMAhDrawn = 0;
+
 }
 
 #include "unittest_macros.h"
@@ -166,20 +171,17 @@ uint16_t batteryWarningVoltage;
 uint8_t useHottAlarmSoundPeriod (void) { return 0; }
 
 
-uint8_t GPS_numSat;
-int32_t GPS_coord[2];
-uint16_t GPS_speed;                 // speed in 0.1m/s
+gpsSolutionData_t gpsSol;
 uint16_t GPS_distanceToHome;        // distance to home point in meters
-uint16_t GPS_altitude;              // altitude in 0.1m
 int16_t GPS_directionToHome;        // direction to home or hol point in degrees
-uint16_t vbat;
 
-int32_t amperage;
-int32_t mAhDrawn;
 
 uint32_t fixedMillis = 0;
 
 baro_t baro;
+
+uint32_t getEstimatedAltitude() { return 0; }
+uint32_t getEstimatedVario() { return 0; }
 
 uint32_t millis(void) {
     return fixedMillis;
@@ -211,18 +213,19 @@ void serialWrite(serialPort_t *instance, uint8_t ch)
     UNUSED(ch);
 }
 
-void serialSetMode(serialPort_t *instance, portMode_t mode)
+void serialSetMode(serialPort_t *instance, portMode_e mode)
 {
     UNUSED(instance);
     UNUSED(mode);
 }
 
-serialPort_t *openSerialPort(serialPortIdentifier_e identifier, serialPortFunction_e functionMask, serialReceiveCallbackPtr callback, uint32_t baudRate, portMode_t mode, portOptions_t options)
+serialPort_t *openSerialPort(serialPortIdentifier_e identifier, serialPortFunction_e functionMask, serialReceiveCallbackPtr callback, void *callbackData, uint32_t baudRate, portMode_e mode, portOptions_e options)
 {
     UNUSED(identifier);
     UNUSED(functionMask);
     UNUSED(baudRate);
     UNUSED(callback);
+    UNUSED(callbackData);
     UNUSED(mode);
     UNUSED(options);
 
@@ -262,9 +265,17 @@ batteryState_e getBatteryState(void)
 	return BATTERY_OK;
 }
 
-uint16_t getVbat(void)
+uint16_t getBatteryVoltage(void)
 {
-    return vbat;
-}
+    return testBatteryVoltage;
 }
 
+int32_t getAmperage(void) {
+    return testAmperage;
+}
+
+int32_t getMAhDrawn(void) {
+    return testMAhDrawn;
+}
+
+}
